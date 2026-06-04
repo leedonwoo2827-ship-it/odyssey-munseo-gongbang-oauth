@@ -13,6 +13,7 @@ const el = (tag, cls, txt) => {
 let RECIPES = [];
 let CURRENT = null;   // 선택된 레시피
 let JOB = null;       // 현재 작업 id
+const COLLAPSED = new Set();  // 접힌 카테고리 이름들 (탐색기처럼 접기/펴기)
 
 // ── 초기화 ───────────────────────────────────────────────
 async function init() {
@@ -121,16 +122,26 @@ function renderCatalog() {
   const groups = {};
   items.forEach(r => { (groups[r.category || "기타"] ||= []).push(r); });
   Object.keys(groups).sort().forEach(cat => {
+    const collapsed = !q && COLLAPSED.has(cat);   // 검색 중엔 항상 펼침
     const g = el("div", "cat-group");
-    g.appendChild(el("div", "cat-title", cat));
-    groups[cat].forEach(r => {
-      const b = el("button", "recipe-btn");
-      if (CURRENT && CURRENT.id === r.id) b.classList.add("active");
-      b.appendChild(el("div", "rb-name", r.name));
-      b.appendChild(el("div", "rb-meta", `${r.format.toUpperCase()} · 입력 ${r.inputs.length}개`));
-      b.addEventListener("click", () => selectRecipe(r));
-      g.appendChild(b);
+    const title = el("div", "cat-title");
+    title.appendChild(el("span", "cat-caret", collapsed ? "▶" : "▼"));
+    title.appendChild(el("span", "cat-name", `${cat} (${groups[cat].length})`));
+    title.addEventListener("click", () => {
+      if (COLLAPSED.has(cat)) COLLAPSED.delete(cat); else COLLAPSED.add(cat);
+      renderCatalog();
     });
+    g.appendChild(title);
+    if (!collapsed) {
+      groups[cat].forEach(r => {
+        const b = el("button", "recipe-btn");
+        if (CURRENT && CURRENT.id === r.id) b.classList.add("active");
+        b.appendChild(el("div", "rb-name", r.name));
+        b.appendChild(el("div", "rb-meta", `${r.format.toUpperCase()} · 입력 ${r.inputs.length}개`));
+        b.addEventListener("click", () => selectRecipe(r));
+        g.appendChild(b);
+      });
+    }
     box.appendChild(g);
   });
 }

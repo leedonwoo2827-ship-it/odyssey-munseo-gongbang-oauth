@@ -17,7 +17,7 @@ echo.
 REM 3초 뒤 브라우저 자동 오픈(서버 기동 대기)
 start "" /b cmd /c "timeout /t 3 >nul & start "" http://127.0.0.1:7000/studio"
 
-venv\Scripts\python -m uvicorn app:app --host 127.0.0.1 --port 7000
+venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 7000
 
 echo.
 echo 서버가 종료되었습니다.

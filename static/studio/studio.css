@@ -48,7 +48,10 @@ body{margin:0;font-family:"Pretendard","맑은 고딕","Malgun Gothic",system-ui
 .catalog-list{overflow:auto;padding:10px}
 .cat-group{margin-bottom:8px}
 .cat-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
-  padding:8px 6px 4px;letter-spacing:.04em}
+  padding:8px 6px;letter-spacing:.04em;cursor:pointer;user-select:none;
+  display:flex;align-items:center;gap:6px;border-radius:7px}
+.cat-title:hover{background:var(--accent-weak);color:var(--accent)}
+.cat-caret{font-size:9px;width:10px;display:inline-block;flex:none}
 .recipe-btn{display:block;width:100%;text-align:left;border:1px solid var(--line);
   background:#fff;border-radius:11px;padding:11px 12px;margin:6px 0;cursor:pointer;transition:.12s}
 .recipe-btn:hover{border-color:var(--accent);background:var(--accent-weak)}
