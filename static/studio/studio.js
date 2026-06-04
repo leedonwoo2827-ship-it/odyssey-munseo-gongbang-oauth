@@ -294,6 +294,7 @@ function escapeHtml(s) {
 }
 function inline(s) {
   return escapeHtml(s)
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>")   // 셀/문장 안 <br> → 실제 줄바꿈
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }

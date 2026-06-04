@@ -100,14 +100,20 @@ def _render_hancom(md: str, out_path: str, template: Optional[str]) -> str:
 
 
 def _md_to_plain(md: str) -> str:
-    """OLE InsertText 용 평문(스타일 매핑 패치 전까지 plain 본문)."""
+    """OLE InsertText 용 평문. 표는 탭 정렬 텍스트로, <br>는 이미 ' / '로 정규화됨."""
     lines = []
     for b in mdblocks.parse(md):
-        if b["type"] == "heading":
+        t = b["type"]
+        if t == "table":
+            if b.get("header"):
+                lines.append("\t".join(b["header"]))
+            for row in b.get("rows", []):
+                lines.append("\t".join(row))
+        elif t == "heading":
             lines.append(b["text"])
-        elif b["type"] == "bullet":
+        elif t == "bullet":
             lines.append("· " + b["text"])
-        elif b["type"] == "quote":
+        elif t == "quote":
             lines.append("  " + b["text"])
         else:
             lines.append(b["text"])
@@ -205,10 +211,27 @@ def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
     normal = _pick(style_map, "본문") or {"styleId": "0", "paraPrIDRef": "0", "charPrIDRef": "0"}
     emph = _pick(style_map, "강조")
     for blk in blocks:
-        st = _style_for_block(blk, style_map, normal)
-        root.append(_make_para(blk, st, emph, normal))
+        for b in (_table_to_blocks(blk) if blk["type"] == "table" else [blk]):
+            st = _style_for_block(b, style_map, normal)
+            root.append(_make_para(b, st, emph, normal))
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _table_to_blocks(blk: Dict) -> List[Dict]:
+    """표 블록 → 단락 블록들(헤더는 굵게 한 줄, 각 행은 ' / '로 이은 불릿)."""
+    out: List[Dict] = []
+    hdr = [c for c in (blk.get("header") or []) if c]
+    if hdr:
+        txt = " · ".join(hdr)
+        out.append({"type": "para", "level": 0, "text": txt, "runs": [(txt, True)]})
+    for row in blk.get("rows", []):
+        cells = [c for c in row if c]
+        if not cells:
+            continue
+        txt = " / ".join(cells)
+        out.append({"type": "bullet", "level": 1, "text": txt, "runs": [(txt, False)]})
+    return out
 
 
 def _style_for_block(blk: Dict, style_map, normal) -> Dict[str, str]:

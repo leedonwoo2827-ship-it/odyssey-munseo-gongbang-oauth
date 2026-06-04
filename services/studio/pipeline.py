@@ -73,7 +73,8 @@ def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
             '"rows": [[셀...], ...]} 만 출력.'
         )
     else:
-        tmpl += "\n\n출력 형식: 잘 구조화된 Markdown (제목 #, 소제목 ##/###, 불릿 -, 강조 **굵게**)."
+        tmpl += ("\n\n출력 형식: 잘 구조화된 Markdown (제목 #, 소제목 ##/###, 불릿 -, 강조 **굵게**, 표는 | a | b | 형식)."
+                 " 셀 안에서 줄을 나눌 때 <br> 등 HTML 태그는 쓰지 말고 쉼표나 ' / '로 구분하세요.")
     return tmpl
 
 

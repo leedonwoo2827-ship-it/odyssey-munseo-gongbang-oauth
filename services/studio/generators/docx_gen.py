@@ -73,6 +73,25 @@ def render(payload: Any, out_path: str, template: Optional[str] = None) -> str:
             p = doc.add_paragraph()
             run = p.add_run(blk["text"])
             run.font.name = "D2Coding"
+        elif btype == "table":
+            ncol = blk.get("ncol") or 0
+            if ncol:
+                table = doc.add_table(rows=0, cols=ncol)
+                try:
+                    table.style = "Table Grid"
+                except Exception:
+                    pass
+                if blk.get("header"):
+                    cells = table.add_row().cells
+                    for j, h in enumerate(blk["header"][:ncol]):
+                        cells[j].text = h
+                        for para in cells[j].paragraphs:
+                            for r in para.runs:
+                                r.bold = True
+                for row in blk.get("rows", []):
+                    cells = table.add_row().cells
+                    for j, v in enumerate(row[:ncol]):
+                        cells[j].text = v
         else:  # para
             p = doc.add_paragraph(style=body_style) if body_style else doc.add_paragraph()
             _add_runs(p, blk["runs"])
