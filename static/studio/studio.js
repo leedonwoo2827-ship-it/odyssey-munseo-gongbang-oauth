@@ -104,6 +104,8 @@ async function loadRecipes() {
   } catch (e) {
     RECIPES = [];
   }
+  // 처음엔 모든 카테고리를 접힌 상태로 표시
+  RECIPES.forEach(r => COLLAPSED.add(r.category || "기타"));
   renderCatalog();
 }
 
