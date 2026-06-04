@@ -734,7 +734,6 @@ def _serve_html_with_nonce(request: Request, file_path: str) -> HTMLResponse:
     html = html.replace("{{CSP_NONCE}}", nonce)
     return HTMLResponse(html)
 
-@app.get("/")
 async def serve_index(request: Request):
     static_path = abs_join(BASE_DIR, "static/index.html")
     if os.path.exists(static_path):
@@ -743,6 +742,11 @@ async def serve_index(request: Request):
     if os.path.exists(root_path):
         return _serve_html_with_nonce(request, root_path)
     raise HTTPException(404, "index.html not found")
+
+@app.get("/")
+async def serve_home(request: Request):
+    """이 배포본의 첫 화면은 문서공방(/studio) 입니다. 루트 접속 시 자동 이동."""
+    return RedirectResponse(url="/studio")
 
 @app.get("/notes")
 async def serve_notes(request: Request):
