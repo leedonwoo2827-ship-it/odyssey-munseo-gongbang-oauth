@@ -1,0 +1,55 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+httpx
+pydantic>=2.0
+pydantic-settings>=2.0
+SQLAlchemy
+pypdf
+beautifulsoup4
+charset-normalizer
+numpy
+# Vector store + local embeddings for RAG, semantic memory, and tool
+# selection. Used on core agent paths, so installed by default — the app
+# still degrades to keyword fallback if they're ever missing.
+# chromadb-client is the lightweight HTTP client (talks to a standalone
+# ChromaDB service); fastembed runs local ONNX embeddings.
+chromadb-client
+fastembed
+youtube-transcript-api
+# Markdown rendering for research reports (src/visual_report.py).
+# Imported at module-top so it's a hard core dep, not optional.
+markdown
+# Calendar .ics import/export (routes/calendar_routes.py).
+icalendar
+# Recurrence rule expansion for calendar events (routes/calendar_routes.py).
+# Imported directly as dateutil.rrule — make it explicit even though caldav
+# pulls it in transitively.
+python-dateutil
+# CalDAV sync (src/caldav_sync.py). Handles PROPFIND discovery + REPORT
+# fetch across Radicale, Nextcloud, Apple, Fastmail; we'd be reinventing
+# the protocol without it.
+caldav
+cryptography
+bcrypt
+mcp
+pyotp
+qrcode[pil]
+croniter
+pytest
+pytest-asyncio
+# ── 문서 생산 스튜디오 (AIM N팀) ─────────────────────────────────
+# liteLLM 프록시 호출(OpenAI 호환) + ubion_llm.py 래퍼
+openai
+requests
+# 레시피 카탈로그(YAML)
+pyyaml
+# 입력/출력 문서 처리
+python-docx        # .docx 추출/생성
+python-pptx        # .pptx 추출/생성
+openpyxl           # .xlsx 추출/생성
+pdfplumber         # .pdf 추출(폴백: pypdf, 이미 코어에 포함)
+lxml               # .hwpx ZIP/XML 처리
+# HWPX 네이티브 생성(한컴 OLE) — Windows + 한컴 한글 설치 시에만 동작
+pywin32; platform_system == "Windows"

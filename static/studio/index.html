@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오디세이 문서공방 · AIM</title>
+  <link rel="stylesheet" href="/static/studio/studio.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">📑</span>
+      <div>
+        <h1>오디세이 문서공방</h1>
+        <p class="sub">AIM 해외사업부 N팀 · Odyssey Studio</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="status" id="status-chip" title="liteLLM 연결 상태">● 확인 중…</div>
+      <button id="open-settings" class="btn-ghost" title="회사 URL·API 키 입력">⚙ 연결 설정</button>
+    </div>
+  </header>
+
+  <!-- 연결 설정 모달 -->
+  <div id="settings-overlay" class="overlay" style="display:none">
+    <div class="modal">
+      <h2>⚙ 연결 설정</h2>
+      <p class="modal-sub" id="settings-intro">
+        회사에서 받은 <b>liteLLM 주소(URL)</b> 와 <b>API 키</b> 를 입력하세요.
+        한 번 저장하면 다음부터는 자동으로 사용됩니다.
+      </p>
+      <label>liteLLM 주소 (URL)</label>
+      <input id="set-url" type="text" placeholder="회사에서 받은 주소 (예: http://10.x.x.x:4000)" />
+      <label>API 키 (virtual key)</label>
+      <input id="set-key" type="password" placeholder="sk-..." autocomplete="off" />
+      <div class="modal-status" id="set-status"></div>
+      <div class="modal-actions">
+        <button id="save-settings" class="btn primary">저장하고 연결 확인</button>
+        <button id="close-settings" class="btn">닫기</button>
+      </div>
+      <p class="modal-hint">키는 이 PC의 <code>data/studio/settings.json</code> 에만 저장됩니다.
+        모르면 담당자에게 <b>URL</b> 과 <b>API 키</b> 를 요청하세요.</p>
+    </div>
+  </div>
+
+  <main class="layout">
+    <!-- 좌측: 산출물 유형 버튼 카탈로그 -->
+    <section class="panel catalog">
+      <div class="panel-head">
+        <h2>① 산출물 선택</h2>
+        <input id="search" type="search" placeholder="유형 검색…" />
+      </div>
+      <div id="catalog" class="catalog-list">
+        <div class="empty">레시피를 불러오는 중…</div>
+      </div>
+    </section>
+
+    <!-- 우측: 입력 + 지시 + 생성 + 결과 -->
+    <section class="panel work">
+      <div id="work-empty" class="work-empty">
+        <p>왼쪽에서 만들 <b>산출물 유형</b>을 골라주세요.</p>
+        <p class="hint">입력 문서를 끌어다 넣고, 필요하면 추가 지시를 적은 뒤 <b>생성</b>을 누릅니다.<br/>
+        입력이 없어도 <b>지시(메모)만으로</b> 생성할 수 있어요.</p>
+      </div>
+
+      <div id="work" class="work-body" style="display:none">
+        <div class="work-head">
+          <h2 id="recipe-name">산출물</h2>
+          <span id="recipe-format" class="badge"></span>
+        </div>
+        <p id="recipe-desc" class="recipe-desc"></p>
+
+        <h3 class="step">② 입력 문서</h3>
+        <div id="inputs" class="inputs"></div>
+
+        <h3 class="step">③ 추가 지시 / 메모 <span class="opt">(선택 · 채팅처럼)</span></h3>
+        <textarea id="instruction" rows="3"
+          placeholder="예) 10차 일정만 강조해줘 / 표는 빼고 서술형으로 / 공식적인 톤으로"></textarea>
+
+        <div class="actions">
+          <button id="generate" class="btn primary">④ 생성하기</button>
+          <span id="gen-spinner" class="spinner" style="display:none"></span>
+        </div>
+
+        <!-- 결과 -->
+        <div id="result" class="result" style="display:none">
+          <div class="result-head">
+            <h3>결과</h3>
+            <div id="downloads" class="downloads"></div>
+          </div>
+          <div id="warnings" class="warnings"></div>
+          <div id="preview" class="preview"></div>
+
+          <h3 class="step">⑤ 채팅으로 수정</h3>
+          <div id="chat" class="chat"></div>
+          <div class="chat-input">
+            <input id="refine" type="text" placeholder="예) 3절을 더 자세히 / 결론 문단 추가" />
+            <button id="refine-btn" class="btn">보내기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/studio/studio.js"></script>
+</body>
+</html>

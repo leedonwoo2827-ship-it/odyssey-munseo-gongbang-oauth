@@ -1,0 +1,123 @@
+:root{
+  --bg:#f4f6fb; --panel:#ffffff; --ink:#1f2a44; --muted:#6b7280;
+  --line:#e5e8f0; --accent:#2e5bff; --accent-weak:#eaf0ff; --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Pretendard","맑은 고딕","Malgun Gothic",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column}
+
+/* 상단바 */
+.topbar{display:flex;justify-content:space-between;align-items:center;
+  padding:14px 22px;background:var(--ink);color:#fff}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .logo{font-size:28px}
+.topbar h1{font-size:18px;margin:0}
+.topbar .sub{margin:2px 0 0;font-size:12px;opacity:.7}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status{font-size:13px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.12);cursor:pointer}
+.status.ok{color:#bbf7d0}.status.bad{color:#fecaca}
+.btn-ghost{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);
+  border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer}
+.btn-ghost:hover{background:rgba(255,255,255,.22)}
+
+/* 모달 */
+.overlay{position:fixed;inset:0;background:rgba(15,20,35,.55);display:flex;
+  align-items:center;justify-content:center;z-index:100}
+.modal{background:#fff;border-radius:16px;padding:26px 28px;width:min(480px,92vw);
+  box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal h2{margin:0 0 8px;font-size:20px}
+.modal-sub{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 16px}
+.modal label{display:block;font-size:12px;font-weight:700;color:var(--ink);margin:12px 0 4px}
+.modal input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
+.modal-status{min-height:20px;margin:12px 0 4px;font-size:13px}
+.modal-status.ok{color:var(--ok)}.modal-status.bad{color:var(--err)}
+.modal-actions{display:flex;gap:10px;margin-top:8px}
+.modal-hint{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.6}
+.modal code{background:#f1f3f8;padding:1px 5px;border-radius:5px}
+
+/* 레이아웃 */
+.layout{flex:1;display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px;overflow:hidden}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  display:flex;flex-direction:column;overflow:hidden}
+.panel-head{padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-head h2{margin:0 0 8px;font-size:14px;color:var(--muted)}
+.panel-head input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px}
+
+/* 카탈로그 */
+.catalog-list{overflow:auto;padding:10px}
+.cat-group{margin-bottom:8px}
+.cat-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  padding:8px 6px 4px;letter-spacing:.04em}
+.recipe-btn{display:block;width:100%;text-align:left;border:1px solid var(--line);
+  background:#fff;border-radius:11px;padding:11px 12px;margin:6px 0;cursor:pointer;transition:.12s}
+.recipe-btn:hover{border-color:var(--accent);background:var(--accent-weak)}
+.recipe-btn.active{border-color:var(--accent);background:var(--accent-weak);box-shadow:0 0 0 2px var(--accent-weak)}
+.recipe-btn .rb-name{font-weight:600;font-size:14px}
+.recipe-btn .rb-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.badge{display:inline-block;font-size:11px;font-weight:700;color:var(--accent);
+  background:var(--accent-weak);padding:2px 8px;border-radius:999px;text-transform:uppercase}
+
+/* 작업 패널 */
+.work{padding:0}
+.work-empty{margin:auto;text-align:center;color:var(--muted);padding:40px}
+.work-empty .hint{font-size:13px;margin-top:10px;line-height:1.7}
+.work-body{overflow:auto;padding:20px 24px}
+.work-head{display:flex;align-items:center;gap:10px}
+.work-head h2{margin:0;font-size:20px}
+.recipe-desc{color:var(--muted);font-size:13px;margin:6px 0 4px}
+.step{font-size:14px;margin:22px 0 8px;color:var(--ink)}
+.step .opt{font-weight:400;color:var(--muted);font-size:12px}
+
+/* 입력 슬롯 */
+.inputs{display:flex;flex-direction:column;gap:10px}
+.slot{border:1.5px dashed var(--line);border-radius:11px;padding:12px 14px;transition:.12s}
+.slot.req{border-color:#fbbf9d}
+.slot.has{border-style:solid;border-color:var(--ok);background:#f0fdf4}
+.slot.drag{border-color:var(--accent);background:var(--accent-weak)}
+.slot .s-label{font-weight:600;font-size:13px}
+.slot .s-req{color:var(--err);margin-left:4px}
+.slot .s-accept{font-size:11px;color:var(--muted);margin-top:2px}
+.slot .s-file{font-size:12px;color:var(--ok);margin-top:6px;display:none}
+.slot input[type=file]{margin-top:8px;font-size:12px;width:100%}
+
+textarea,.chat-input input{width:100%;border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical}
+
+/* 버튼 */
+.actions{margin-top:16px;display:flex;align-items:center;gap:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 18px;
+  font-size:14px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.spinner{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 결과 */
+.result{margin-top:24px;border-top:1px solid var(--line);padding-top:16px}
+.result-head{display:flex;justify-content:space-between;align-items:center}
+.downloads{display:flex;gap:8px;flex-wrap:wrap}
+.dl{font-size:13px;text-decoration:none;background:var(--ink);color:#fff;padding:7px 13px;border-radius:9px}
+.dl.alt{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.warnings{margin:10px 0}
+.warnings .w{background:#fff7ed;border:1px solid #fed7aa;color:var(--warn);
+  padding:8px 12px;border-radius:9px;font-size:12px;margin:6px 0;white-space:pre-wrap}
+.preview{background:#fbfcfe;border:1px solid var(--line);border-radius:11px;padding:18px 22px;
+  margin-top:10px;line-height:1.7;font-size:14px;max-height:520px;overflow:auto}
+.preview h1{font-size:22px;border-bottom:2px solid var(--accent);padding-bottom:6px}
+.preview h2{font-size:18px;margin-top:18px}.preview h3{font-size:15px}
+.preview table{border-collapse:collapse;width:100%;margin:10px 0}
+.preview th,.preview td{border:1px solid var(--line);padding:6px 9px;font-size:13px}
+.preview th{background:var(--accent-weak)}
+
+/* 채팅 */
+.chat{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.msg{padding:8px 12px;border-radius:11px;font-size:13px;max-width:80%}
+.msg.user{align-self:flex-end;background:var(--accent);color:#fff}
+.msg.assistant{align-self:flex-start;background:#eef1f7}
+.chat-input{display:flex;gap:8px}
+.chat-input input{flex:1}
+.empty{color:var(--muted);text-align:center;padding:20px;font-size:13px}
