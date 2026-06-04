@@ -25,6 +25,9 @@ async function init() {
   $("#open-settings").addEventListener("click", () => openSettings(false));
   $("#close-settings").addEventListener("click", closeSettings);
   $("#save-settings").addEventListener("click", saveSettings);
+  // 산출물 목록 모달
+  $("#open-outputs").addEventListener("click", openOutputs);
+  $("#close-outputs").addEventListener("click", () => { $("#outputs-overlay").style.display = "none"; });
 
   await loadRecipes();
   // 첫 화면: 연결 상태 확인 → 미연결이면 설정창으로 유도
@@ -70,6 +73,34 @@ async function openSettings(firstTime) {
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
+
+// ── 산출물 목록 모달 ─────────────────────────────────────
+async function openOutputs() {
+  const box = $("#outputs-list");
+  box.innerHTML = '<div class="empty">불러오는 중…</div>';
+  $("#outputs-overlay").style.display = "flex";
+  try {
+    const r = await fetch(`${API}/outputs`);
+    const d = await r.json();
+    if (!d.outputs || !d.outputs.length) {
+      box.innerHTML = '<div class="empty">아직 생성된 산출물이 없습니다.</div>';
+      return;
+    }
+    box.innerHTML = "";
+    d.outputs.forEach(o => {
+      const row = el("a", "out-row");
+      row.href = `${API}/outputs/${encodeURIComponent(o.name)}`;
+      row.setAttribute("download", o.name);
+      const fmt = el("span", "out-fmt", (o.format || "").toUpperCase());
+      const name = el("span", "out-name", o.name);
+      const meta = el("span", "out-meta", `${o.modified} · ${o.size_kb}KB`);
+      row.appendChild(fmt); row.appendChild(name); row.appendChild(meta);
+      box.appendChild(row);
+    });
+  } catch (e) {
+    box.innerHTML = '<div class="empty">목록을 불러오지 못했습니다.</div>';
+  }
+}
 
 async function saveSettings() {
   const url = $("#set-url").value.trim();

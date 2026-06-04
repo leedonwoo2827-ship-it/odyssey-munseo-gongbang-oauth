@@ -17,9 +17,20 @@
     </div>
     <div class="topbar-right">
       <div class="status" id="status-chip" title="liteLLM 연결 상태">● 확인 중…</div>
+      <button id="open-outputs" class="btn-ghost" title="이 PC에 생성된 산출물 목록">📂 산출물</button>
       <button id="open-settings" class="btn-ghost" title="회사 URL·API 키 입력">⚙ 연결 설정</button>
     </div>
   </header>
+
+  <!-- 산출물 목록 모달 -->
+  <div id="outputs-overlay" class="overlay" style="display:none">
+    <div class="modal modal-wide">
+      <h2>📂 최근 산출물</h2>
+      <p class="modal-sub">이 PC(<code>data/studio/outputs</code>)에 저장된 생성 결과입니다. 클릭하면 내려받습니다.</p>
+      <div id="outputs-list" class="outputs-list"><div class="empty">불러오는 중…</div></div>
+      <div class="modal-actions"><button id="close-outputs" class="btn">닫기</button></div>
+    </div>
+  </div>
 
   <!-- 연결 설정 모달 -->
   <div id="settings-overlay" class="overlay" style="display:none">

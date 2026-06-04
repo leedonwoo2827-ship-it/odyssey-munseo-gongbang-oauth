@@ -112,6 +112,40 @@ def setup_studio_routes():
             raise HTTPException(404, "파일을 찾을 수 없습니다")
         return FileResponse(path, filename=filename)
 
+    @router.get("/outputs")
+    async def list_outputs():
+        """이 PC(data/studio/outputs)에 저장된 산출물 목록(최신순). DB 불필요."""
+        import datetime
+        d = config.OUTPUTS_DIR
+        items = []
+        if os.path.isdir(d):
+            for fn in os.listdir(d):
+                if fn.startswith("_"):
+                    continue
+                fp = os.path.join(d, fn)
+                if not os.path.isfile(fp):
+                    continue
+                st = os.stat(fp)
+                items.append({
+                    "name": fn,
+                    "format": os.path.splitext(fn)[1].lstrip(".").lower(),
+                    "size_kb": round(st.st_size / 1024, 1),
+                    "_mtime": st.st_mtime,
+                })
+        items.sort(key=lambda x: x["_mtime"], reverse=True)
+        for it in items:
+            it["modified"] = datetime.datetime.fromtimestamp(it.pop("_mtime")).strftime("%Y-%m-%d %H:%M")
+        return {"outputs": items[:300], "count": len(items)}
+
+    @router.get("/outputs/{filename}")
+    async def download_output(filename: str):
+        """산출물 폴더에서 파일명으로 직접 다운로드(경로 이탈 방지)."""
+        safe = os.path.basename(filename)
+        fp = os.path.join(config.OUTPUTS_DIR, safe)
+        if not os.path.isfile(fp):
+            raise HTTPException(404, "파일을 찾을 수 없습니다")
+        return FileResponse(fp, filename=safe)
+
     @router.get("/settings")
     async def get_settings():
         """현재 연결 설정(키는 마스킹). 첫 화면에서 안내/자동표시에 사용."""
