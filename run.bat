@@ -8,6 +8,9 @@ if not defined _ODY_KEEPOPEN (
 )
 cd /d "%~dp0"
 
+REM Port for this instance. Change here if it conflicts with another app.
+set "PORT=7001"
+
 if not exist "venv\Scripts\python.exe" (
   echo [NOTE] Not installed yet. Please double-click setup.bat first.
   pause & exit /b 1
@@ -29,15 +32,15 @@ if errorlevel 1 (
 
 echo ============================================================
 echo   Odyssey Studio - running
-echo   URL: http://127.0.0.1:7000   (sign in, then /studio)
+echo   URL: http://127.0.0.1:%PORT%   (sign in, then /studio)
 echo   (Close this black window to stop. Stop: Ctrl+C)
 echo ============================================================
 echo.
 
 REM Open the browser ~3s after start (give the server time to boot)
-start "" /b cmd /c "timeout /t 3 >nul & start "" http://127.0.0.1:7000/"
+start "" /b cmd /c "timeout /t 3 >nul & start "" http://127.0.0.1:%PORT%/"
 
-venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 7000
+venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port %PORT%
 
 echo.
 echo Server stopped.
