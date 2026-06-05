@@ -37,6 +37,21 @@
   시그니처를 그대로 재현(드롭인). studio 의 `llm.py`/`pipeline.py` 호출부는 거의 무수정.
 - 모델: `STUDIO_DEFAULT_MODEL`(기본 gemini-3-pro), `STUDIO_LONG_MODEL`(기본 gemini-3-flash).
 
+## 터미널(agy 로그인 UI) 설계 — 2단 폴백
+
+로그인/계정전환/모델·사용량 조회는 터미널에서 `agy` 명령으로 한다. 두 가지 방식을 둔다:
+
+1. **브라우저 내장 터미널(기본)** — `/terminal` 페이지(xterm.js) ↔ WebSocket `/api/agy/terminal/ws`
+   ↔ PtySession(pywinpty/ptyprocess). 새 탭에서 바로 입력. (pywinpty 설치 필요)
+2. **실제 OS cmd 창(폴백)** — `POST /api/agy/open-terminal` 이 진짜 cmd/터미널 창을 띄워 그 안에서 `agy`
+   실행. pywinpty 가 없거나 내장 터미널이 안 될 때 사용(추가 의존성 없음). `/terminal` 페이지의
+   **[🪟 실제 cmd 창 열기]** 버튼, 또는 진단(`/api/agy/terminal/diag`)에서 `pty_available=false` 면 안내.
+
+명령어 목록은 [commands.md](commands.md). 둘 다 loopback(127.0.0.1) 전용 + 인증 예외(최초 로그인용).
+
+> 주의: `.bat` 파일은 **ASCII(영문)만** 사용한다. 한글을 넣으면 CP949 콘솔에서 줄이 깨져
+> "내부/외부 명령이 아닙니다"로 실패한다(한글 안내는 README·화면에만 둔다).
+
 ## 전제 / 보안
 - 각 PC = 단일 사용자 / 단일 `agy` 계정. 내장 터미널 WS 는 loopback(127.0.0.1) 직접 연결만 허용.
 - 최초 `agy` 로그인을 위해 `/terminal`, `/api/auth/google/*` 는 인증 예외(app.py AUTH_EXEMPT).

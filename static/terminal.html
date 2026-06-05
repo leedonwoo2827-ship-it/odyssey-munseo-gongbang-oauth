@@ -32,6 +32,7 @@
     <button data-cmd="agy --version&#10;">버전</button>
     <button data-cmd="agy --help&#10;">명령 목록(help)</button>
     <button id="btn-clear">화면 지우기</button>
+    <button id="btn-oscmd" title="브라우저 내장 터미널이 안 될 때 실제 cmd 창을 띄웁니다">🪟 실제 cmd 창 열기</button>
   </div>
   <div id="term"></div>
 
@@ -91,7 +92,7 @@
             term.writeln('  (venv 사용 시: venv\\Scripts\\python -m pip install pywinpty)');
             if (d.pty_import_error) term.writeln('  사유: ' + d.pty_import_error);
             term.writeln('');
-            term.writeln('\x1b[36m대안: 윈도우 cmd 를 직접 열어  agy  를 실행해 Google 로그인해도 됩니다.\x1b[0m');
+            term.writeln('\x1b[36m대안: 위의 [실제 cmd 창 열기] 버튼을 누르면 진짜 cmd 창이 떠서 거기서 agy 로그인할 수 있습니다.\x1b[0m');
             setStatus('PTY 미설치 — 위 안내 참고', 'bad');
             if (!d.agy_installed) term.writeln('\x1b[33m참고: agy 도 아직 설치되지 않았습니다 (docs/antigravity/install.md).\x1b[0m');
             return; // WS 연결 시도하지 않음
@@ -115,6 +116,17 @@
         });
       });
       document.getElementById('btn-clear').addEventListener('click', () => term.clear());
+
+      // 폴백: 브라우저 내장 터미널 대신 실제 cmd 창을 띄운다.
+      document.getElementById('btn-oscmd').addEventListener('click', async () => {
+        try {
+          const r = await fetch('/api/agy/open-terminal', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d.ok) term.writeln('\r\n\x1b[32m실제 cmd 창을 열었습니다. 그 창에서 agy 로 로그인하세요.\x1b[0m');
+          else term.writeln('\r\n\x1b[31m' + (d.message || 'cmd 창을 열지 못했습니다.') + '\x1b[0m');
+        } catch (e) { term.writeln('\r\n\x1b[31mcmd 창 열기 실패: ' + e + '\x1b[0m'); }
+      });
+
       term.focus();
     })();
   </script>

@@ -84,23 +84,13 @@ async function openSettings(firstTime) {
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
 
-// "터미널 열기" → 서버가 실제 OS 터미널 창을 띄워 그 안에서 agy 실행(로그인/계정전환)
-async function openTerminal() {
+// "터미널 열기" → 새 탭으로 브라우저 내장 터미널(/terminal) 열기.
+// (내장 터미널이 pywinpty 없이 안 되면 그 페이지가 실제 cmd 창으로 자동 폴백)
+function openTerminal() {
+  window.open("/terminal", "_blank", "noopener");
   const st = $("#set-status");
-  st.className = "modal-status"; st.textContent = "터미널 창을 여는 중…";
-  try {
-    const r = await fetch(`/api/agy/open-terminal`, { method: "POST" });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok && d.ok) {
-      st.className = "modal-status ok";
-      st.textContent = "✓ 터미널 창이 열렸습니다. 그 창에 agy 입력 → Google 로그인(계정전환은 agy logout). 끝나면 '상태 새로고침'.";
-    } else {
-      st.className = "modal-status bad";
-      st.textContent = "✗ " + (d.message || "터미널을 열지 못했습니다.") + " 직접 cmd 에서 agy 실행하세요.";
-    }
-  } catch (e) {
-    st.className = "modal-status bad"; st.textContent = "✗ 터미널 열기 실패: " + e;
-  }
+  st.className = "modal-status";
+  st.textContent = "새 탭의 터미널에서 agy 로 로그인 후, '상태 새로고침'을 누르세요.";
 }
 
 // ── 산출물 목록 모달 ─────────────────────────────────────

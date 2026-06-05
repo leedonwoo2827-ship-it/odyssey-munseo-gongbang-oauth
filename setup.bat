@@ -49,6 +49,20 @@ if errorlevel 1 (
 )
 echo step:pip-ok >> "%LOG%"
 
+REM    Embedded-terminal PTY backend (pywinpty) - install if missing
+"%VPY%" -c "import winpty" 2>nul
+if errorlevel 1 (
+  echo       Installing embedded-terminal backend (pywinpty) ...
+  "%VPY%" -m pip install pywinpty
+)
+"%VPY%" -c "import winpty" 2>nul
+if errorlevel 1 (
+  echo       [NOTE] pywinpty not installed - the in-page terminal will fall back to a real cmd window.
+) else (
+  echo       [OK] embedded-terminal backend ready
+)
+echo step:pywinpty-done >> "%LOG%"
+
 REM 4) Antigravity CLI (agy) - best effort, isolated with cmd /c
 echo [3/3] Checking Antigravity CLI (agy) ...
 where agy >nul 2>nul
