@@ -31,13 +31,20 @@ if not exist "venv\Scripts\python.exe" (
 set "VPY=venv\Scripts\python.exe"
 
 REM 3) 라이브러리 설치
-echo [2/3] 라이브러리 설치 중... 처음엔 몇 분 걸립니다
+echo [2/4] 라이브러리 설치 중... 처음엔 몇 분 걸립니다
 "%VPY%" -m pip install --upgrade pip
 "%VPY%" -m pip install -r requirements.txt
 if errorlevel 1 (
   echo [오류] 라이브러리 설치 실패. 위 빨간 메시지를 확인하세요.
   pause & exit /b 1
 )
+REM    내장 터미널 PTY 백엔드(pywinpty) 확인 — 없으면 명시 설치
+"%VPY%" -c "import winpty" 2>nul
+if errorlevel 1 (
+  echo       내장 터미널 구성요소(pywinpty) 설치 중...
+  "%VPY%" -m pip install pywinpty
+)
+"%VPY%" -c "import winpty" 2>nul && echo       [확인] 내장 터미널 구성요소 OK || echo       [경고] pywinpty 설치 실패 - 내장 터미널 대신 cmd 에서 agy 직접 실행하세요
 
 REM 4) Antigravity CLI(agy) 설치 - LLM 호출 백엔드(키 불필요)
 echo [3/4] Antigravity CLI(agy) 설치 확인...
