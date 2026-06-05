@@ -100,18 +100,18 @@
         btnsEl.innerHTML = '';
         const login = document.createElement('button');
         login.className = 'primary';
-        login.textContent = loggedIn ? '🔑 다시 로그인 (다른 계정)' : '🔑 Google 로그인';
+        login.textContent = (loggedIn ? '🔑 다시 로그인 (다른 계정)' : '🔑 Google 로그인') + '  [L]';
         login.onclick = openLogin;
         btnsEl.appendChild(login);
         if (loggedIn) {
           const out = document.createElement('button');
           out.className = 'danger';
-          out.textContent = '🔁 로그아웃';
+          out.textContent = '🔁 로그아웃  [O]';
           out.onclick = doLogout;
           btnsEl.appendChild(out);
         }
         const ref = document.createElement('button');
-        ref.textContent = '↻ 상태 새로고침';
+        ref.textContent = '↻ 상태 새로고침  [R]';
         ref.onclick = refresh;
         btnsEl.appendChild(ref);
       }
@@ -138,6 +138,16 @@
 
       refresh();
       window.addEventListener('focus', refresh);
+
+      // 키보드 단축키: L=로그인, O=로그아웃, R=새로고침 (터미널 입력 중엔 무시)
+      document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        if (e.target && e.target.closest && e.target.closest('#term')) return;
+        const k = (e.key || '').toLowerCase();
+        if (k === 'l') { e.preventDefault(); openLogin(); }
+        else if (k === 'o') { e.preventDefault(); doLogout(); }
+        else if (k === 'r') { e.preventDefault(); refresh(); }
+      });
 
       // ── 고급: 내장 터미널(펼칠 때만 연결) ──────────────────────────────
       const wsstatus = document.getElementById('wsstatus');

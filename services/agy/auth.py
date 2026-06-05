@@ -14,24 +14,66 @@ from typing import Optional
 
 from .runner import is_installed  # re-export 편의
 
-# agy 인증정보 위치(환경변수로 덮어쓰기 가능)
-CREDS_PATH = os.environ.get(
-    "AGY_CREDS_PATH",
-    str(Path.home() / ".antigravity" / "oauth_creds.json"),
-)
+# agy 인증정보 파일(있으면 최우선). 환경변수로 명시 지정 가능.
+CREDS_PATH = os.environ.get("AGY_CREDS_PATH", "").strip()
+
+# agy 1.0.5 의 자격증명 저장 위치가 확정 공개되지 않아, 가능한 디렉터리를 모두 훑는다.
+def _agy_dirs() -> list[Path]:
+    dirs = [Path.home() / ".antigravity", Path.home() / ".config" / "antigravity"]
+    for ev in ("LOCALAPPDATA", "APPDATA"):
+        base = os.environ.get(ev)
+        if base:
+            dirs.append(Path(base) / "Antigravity")
+            dirs.append(Path(base) / "antigravity")
+    # 중복 제거
+    seen, out = set(), []
+    for d in dirs:
+        s = str(d).lower()
+        if s not in seen:
+            seen.add(s)
+            out.append(d)
+    return out
+
+
+def _cred_json_files() -> list[Path]:
+    """agy 설정 디렉터리들에서 자격증명 후보 .json 파일 목록(존재하는 것만)."""
+    files: list[Path] = []
+    if CREDS_PATH and os.path.isfile(CREDS_PATH):
+        files.append(Path(CREDS_PATH))
+    for d in _agy_dirs():
+        try:
+            if not d.is_dir():
+                continue
+            for p in sorted(d.rglob("*.json")):
+                if p.is_file() and p not in files:
+                    files.append(p)
+                if len(files) > 60:  # 안전 상한
+                    break
+        except Exception:
+            continue
+    return files
 
 
 def creds_exist() -> bool:
-    return os.path.isfile(CREDS_PATH)
+    return any(_cred_json_files())
 
 
-def _load_creds() -> Optional[dict]:
-    try:
-        with open(CREDS_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else None
-    except Exception:
-        return None
+def _deep_find(obj, keys) -> Optional[str]:
+    """중첩 dict/list 를 훑어 keys 중 하나에 해당하는 첫 문자열 값을 반환."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in keys and isinstance(v, str) and v.strip():
+                return v.strip()
+        for v in obj.values():
+            r = _deep_find(v, keys)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _deep_find(v, keys)
+            if r:
+                return r
+    return None
 
 
 def _decode_jwt_email(id_token: str) -> Optional[str]:
@@ -63,45 +105,45 @@ def _userinfo_email(access_token: str) -> Optional[str]:
         return None
 
 
+def _email_from_obj(obj) -> Optional[str]:
+    """파싱된 자격증명 객체에서 email 추출: 평문 email → id_token(JWT) → access_token(userinfo)."""
+    email = _deep_find(obj, {"email", "user_email", "account_email", "account"})
+    if email and "@" in email:
+        return email.strip().lower()
+    idt = _deep_find(obj, {"id_token", "idToken"})
+    if idt and idt.count(".") >= 2:
+        e = _decode_jwt_email(idt)
+        if e:
+            return e
+    at = _deep_find(obj, {"access_token", "accessToken"})
+    if at:
+        e = _userinfo_email(at)
+        if e:
+            return e
+    return None
+
+
+def _looks_like_creds(obj) -> bool:
+    """토큰/이메일을 담고 있어 '자격증명 파일'로 볼 수 있는지."""
+    return bool(_deep_find(obj, {"email", "id_token", "idToken", "access_token",
+                                 "accessToken", "refresh_token", "refreshToken"}))
+
+
 def get_account_email() -> Optional[str]:
     """agy 에 로그인된 Google 계정 email. 미로그인/실패 시 None.
 
-    우선순위: creds 의 직접 email 필드 → id_token JWT → access_token userinfo.
-    agy creds 스키마가 확정 공개되지 않아 여러 후보를 관용적으로 탐색한다.
+    agy 자격증명 위치가 확정 공개되지 않아, 가능한 디렉터리의 .json 들을 훑어
+    email(또는 id_token/access_token)을 찾는다.
     """
-    creds = _load_creds()
-    if not creds:
-        return None
-
-    # 1) 평문 email 필드(있다면)
-    for key in ("email", "account", "user_email"):
-        v = creds.get(key)
-        if isinstance(v, str) and "@" in v:
-            return v.strip().lower()
-
-    # 중첩(예: {"tokens": {...}} / {"credentials": {...}})
-    nested = {}
-    for k in ("tokens", "credentials", "token", "oauth"):
-        if isinstance(creds.get(k), dict):
-            nested.update(creds[k])
-    merged = {**creds, **nested}
-
-    # 2) id_token JWT
-    for key in ("id_token", "idToken"):
-        tok = merged.get(key)
-        if isinstance(tok, str) and tok.count(".") >= 2:
-            email = _decode_jwt_email(tok)
-            if email:
-                return email
-
-    # 3) access_token → userinfo
-    for key in ("access_token", "accessToken"):
-        tok = merged.get(key)
-        if isinstance(tok, str) and tok:
-            email = _userinfo_email(tok)
-            if email:
-                return email
-
+    for p in _cred_json_files():
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            continue
+        email = _email_from_obj(obj)
+        if email:
+            return email
     return None
 
 
@@ -111,18 +153,24 @@ def is_authenticated() -> bool:
 
 
 def logout() -> bool:
-    """agy 자격증명 파일을 삭제해 로그아웃(계정 전환 준비). 삭제했으면 True.
+    """agy 자격증명 파일(토큰/이메일 포함 .json)을 삭제해 로그아웃. 하나라도 지웠으면 True.
 
     agy(1.0.5)에는 `logout` 하위명령이 없어, 저장된 OAuth 자격증명을 지우는 방식으로
     로그아웃한다. 이후 `agy` 를 다시 실행하면 새 Google 계정으로 로그인할 수 있다.
     """
     removed = False
-    try:
-        if os.path.isfile(CREDS_PATH):
-            os.remove(CREDS_PATH)
-            removed = True
-    except Exception:
-        pass
+    for p in _cred_json_files():
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                obj = json.load(f)
+        except Exception:
+            continue
+        if _looks_like_creds(obj):
+            try:
+                os.remove(p)
+                removed = True
+            except Exception:
+                pass
     return removed
 
 
@@ -134,5 +182,5 @@ def status() -> dict:
         "installed": installed,
         "authenticated": bool(email),
         "email": email,
-        "creds_path": CREDS_PATH,
+        "creds_files": [str(p) for p in _cred_json_files()][:10],
     }
