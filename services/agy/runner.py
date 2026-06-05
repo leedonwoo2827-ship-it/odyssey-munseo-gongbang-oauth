@@ -19,9 +19,18 @@ from typing import Any, Dict, List, Optional
 
 # ── 설정(.env 로 덮어쓰기 가능) ──────────────────────────────────────────────
 AGY_BIN = os.environ.get("AGY_BIN", "agy")
-# agy --print 단일 호출 타임아웃(초). agy 자체 --print-timeout 과 wall-clock 양쪽에 적용.
+# agy --print 단일 호출 타임아웃(초).
 AGY_TIMEOUT = int(os.environ.get("AGY_PRINT_TIMEOUT", "300"))
 DEFAULT_MODEL = os.environ.get("STUDIO_DEFAULT_MODEL", "gemini-3-pro")
+# agy 에 --model 로 넘길 모델명. 비우면 --model 을 아예 안 넘긴다(agy 기본 모델 사용).
+# (우리 레시피의 모델명과 agy 의 모델 ID가 다를 수 있어, 기본은 agy 에 맡긴다.)
+AGY_MODEL = os.environ.get("AGY_MODEL", "").strip()
+
+# agy 가 PATH 에 없을 때 확인할 기본 설치 위치
+_FALLBACK_AGY_PATHS = [
+    os.path.expandvars(r"%LOCALAPPDATA%\Antigravity\agy.exe"),
+    os.path.expanduser("~/.local/bin/agy"),
+]
 
 # 문서 생성기로 쓰기 위한 가드(코딩 에이전트의 도구사용/파일조작 억제).
 _GUARD_SYSTEM = (
@@ -63,7 +72,14 @@ def agy_path() -> Optional[str]:
     # 절대경로를 직접 지정한 경우
     if os.path.sep in AGY_BIN or (os.path.altsep and os.path.altsep in AGY_BIN):
         return AGY_BIN if os.path.isfile(AGY_BIN) else None
-    return shutil.which(AGY_BIN)
+    found = shutil.which(AGY_BIN)
+    if found:
+        return found
+    # PATH 에 없으면 알려진 설치 위치 확인(uvicorn 프로세스 PATH 누락 대비)
+    for p in _FALLBACK_AGY_PATHS:
+        if p and os.path.isfile(p):
+            return p
+    return None
 
 
 def is_installed() -> bool:
@@ -181,6 +197,38 @@ class AgyClient:
         return self._run(_compose_prompt([{"role": "user", "content": prompt}]),
                          model or self.default_model)
 
+    def _candidate_cmds(self, path: str, prompt: str) -> List[List[str]]:
+        """agy 버전/플래그 지원 차이에 견고하도록 여러 변형을 우선순위대로 시도.
+
+        agy 의 모델 ID / 플래그가 버전마다 다를 수 있어, 옵션이 많은 명령부터 시도하고
+        실패하면 점점 단순한 명령으로 폴백한다. --model 은 AGY_MODEL 이 설정된 경우만 넘긴다
+        (미설정 시 agy 기본 모델 사용 — 가장 호환성 높음).
+        """
+        model_opt = (["--model", AGY_MODEL] if AGY_MODEL else [])
+        variants: List[List[str]] = []
+        # 1) json + (model) + skip-permissions
+        variants.append([path, "--print", prompt, "--output-format", "json", *model_opt,
+                         "--dangerously-skip-permissions"])
+        # 2) json + (model)
+        variants.append([path, "--print", prompt, "--output-format", "json", *model_opt])
+        # 3) json only
+        variants.append([path, "--print", prompt, "--output-format", "json"])
+        # 4) skip-permissions, plain text
+        variants.append([path, "--print", prompt, "--dangerously-skip-permissions"])
+        # 5) plain text
+        variants.append([path, "--print", prompt])
+        # 6) -p alias, plain text
+        variants.append([path, "-p", prompt])
+        # 중복 제거(순서 유지)
+        seen = set()
+        uniq = []
+        for v in variants:
+            key = tuple(v)
+            if key not in seen:
+                seen.add(key)
+                uniq.append(v)
+        return uniq
+
     def _run(self, prompt: str, model: str) -> str:
         path = agy_path() if self.bin == AGY_BIN else (
             self.bin if os.path.isfile(self.bin) else shutil.which(self.bin))
@@ -189,35 +237,38 @@ class AgyClient:
                 "Antigravity CLI(`agy`)가 설치되어 있지 않습니다. "
                 "docs/antigravity/install.md 를 참고해 설치 후 `agy` 로 Google 로그인하세요."
             )
-        cmd = [
-            path, "--print", prompt,
-            "--output-format", "json",
-            "--model", model,
-            "--print-timeout", f"{self.timeout}s",
-            "--dangerously-skip-permissions",
-        ]
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=self.timeout + 30,
-            )
-        except FileNotFoundError as e:
-            raise AgyNotInstalled(f"agy 실행 실패: {e}") from e
-        except subprocess.TimeoutExpired as e:
-            raise AgyError(f"agy 응답 시간 초과({self.timeout}s). 모델/프롬프트를 줄여보세요.") from e
 
-        if proc.returncode != 0:
-            raise _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
+        last_err: Optional[Exception] = None
+        for cmd in self._candidate_cmds(path, prompt):
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=self.timeout + 30,
+                )
+            except FileNotFoundError as e:
+                raise AgyNotInstalled(f"agy 실행 실패: {e}") from e
+            except subprocess.TimeoutExpired as e:
+                last_err = AgyError(f"agy 응답 시간 초과({self.timeout}s). 모델/프롬프트를 줄여보세요.")
+                continue
 
-        text = _extract_text(proc.stdout or "")
-        if not text.strip():
-            # 정상 종료인데 본문이 비면 인증/할당량 문제일 수 있음 → 단서 분류
-            raise _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
-        return text
+            if proc.returncode != 0:
+                # 인증/할당량 문제면 즉시 그 에러로 종료(폴백해도 동일하게 실패)
+                err = _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
+                if isinstance(err, (AgyNotAuthenticated, AgyQuotaExceeded)):
+                    raise err
+                last_err = err  # 플래그 미지원 등 → 다음 변형 시도
+                continue
+
+            text = _extract_text(proc.stdout or "")
+            if text.strip():
+                return text
+            last_err = _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
+
+        raise last_err or AgyError("agy 호출이 모든 방식에서 실패했습니다.")
 
 
 # 모듈 전역 싱글톤(가벼우므로 import 시 생성해도 무방 — 실제 호출 전엔 agy 를 건드리지 않음)
