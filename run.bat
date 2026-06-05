@@ -16,7 +16,7 @@ if not exist "venv\Scripts\python.exe" (
 REM Self-heal: ensure embedded-terminal backend (pywinpty) exists (older venvs)
 venv\Scripts\python -c "import winpty" 2>nul
 if errorlevel 1 (
-  echo [NOTE] Installing missing components (pywinpty) ... first time only.
+  echo [NOTE] Installing missing components pywinpty ... first time only.
   venv\Scripts\python -m pip install -r requirements.txt
 )
 

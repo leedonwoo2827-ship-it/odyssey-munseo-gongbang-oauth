@@ -58,7 +58,7 @@ echo step:pip-ok >> "%LOG%"
 REM    Embedded-terminal PTY backend (pywinpty) - install if missing
 "%VPY%" -c "import winpty" 2>nul
 if errorlevel 1 (
-  echo       Installing embedded-terminal backend (pywinpty) ...
+  echo       Installing embedded-terminal backend pywinpty ...
   "%VPY%" -m pip install pywinpty
 )
 "%VPY%" -c "import winpty" 2>nul
