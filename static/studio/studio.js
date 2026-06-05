@@ -37,20 +37,22 @@ async function init() {
 }
 
 async function checkHealth() {
+  // 칩은 agy 로그인 여부(자격증명)로 판단 — 빠르고 할당량 소모 없음.
+  // (실제 생성 가능 여부와 동일: agy 로그인돼 있으면 생성 가능)
   const chip = $("#status-chip");
+  chip.onclick = () => openSettings(true);
   try {
-    const r = await fetch(`${API}/health`);
-    const d = await r.json();
-    if (d.llm && d.llm.ok) {
+    const r = await fetch(`${API}/settings`);
+    const s = await r.json();
+    if (s.authenticated) {
       chip.textContent = "● Gemini(agy) 연결됨";
       chip.className = "status ok";
-      chip.title = "";
+      chip.title = s.email || "";
       return true;
     }
-    chip.textContent = "● 연결 안 됨 — 클릭해 상태확인";
+    chip.textContent = s.installed ? "● 로그인 필요 — 클릭" : "● agy 미설치 — 클릭";
     chip.className = "status bad";
-    chip.title = (d.llm && d.llm.error) || "";
-    chip.onclick = () => openSettings(true);
+    chip.title = "";
     return false;
   } catch (e) {
     chip.textContent = "● 서버 응답 없음";
@@ -80,6 +82,8 @@ async function openSettings(firstTime) {
   } catch (e) {
     st.className = "modal-status bad"; st.textContent = "✗ 상태 확인 실패: " + e;
   }
+  // 우상단 칩도 같이 갱신
+  checkHealth();
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
