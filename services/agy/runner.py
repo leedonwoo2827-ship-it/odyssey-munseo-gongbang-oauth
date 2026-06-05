@@ -13,9 +13,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
+import time
 from typing import Any, Dict, List, Optional
+
+# ANSI 이스케이프(색상/커서 등) 제거용
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[@-Z\\-_]")
+
+
+def _strip_ansi(s: str) -> str:
+    s = _ANSI_RE.sub("", s or "")
+    return s.replace("\r\n", "\n").replace("\r", "\n")
 
 # ── 설정(.env 로 덮어쓰기 가능) ──────────────────────────────────────────────
 AGY_BIN = os.environ.get("AGY_BIN", "agy")
@@ -226,6 +236,55 @@ class AgyClient:
                 uniq.append(v)
         return uniq
 
+    def _run_via_pty(self, argv: List[str]) -> Optional[str]:
+        """agy 를 PTY 로 실행해 콘솔 출력을 캡처한다.
+
+        중요: agy 는 응답을 stdout 파이프가 아니라 '콘솔'에 직접 쓴다. 그래서 일반
+        subprocess(capture_output) 로는 빈 문자열만 잡힌다. PTY(가상 콘솔)로 실행하면
+        그 출력을 캡처할 수 있다. pywinpty/ptyprocess 가 없으면 None(→ subprocess 폴백).
+        """
+        try:
+            from .pty_terminal import PtyProcess, backend_available
+        except Exception:
+            return None
+        if not backend_available() or PtyProcess is None:
+            return None
+        try:
+            proc = PtyProcess.spawn(argv, dimensions=(60, 220))
+        except Exception:
+            return None
+
+        chunks: List[str] = []
+        deadline = time.monotonic() + self.timeout
+        last_data = time.monotonic()
+        try:
+            while True:
+                if time.monotonic() > deadline:
+                    break
+                try:
+                    data = proc.read(65536)
+                except EOFError:
+                    break
+                except Exception:
+                    break
+                if data:
+                    chunks.append(data)
+                    last_data = time.monotonic()
+                else:
+                    if not proc.isalive():
+                        break
+                    # 출력이 멈춘 지 충분히 지났고 이미 받은 게 있으면 완료로 간주
+                    if chunks and (time.monotonic() - last_data) > 8:
+                        break
+                    time.sleep(0.05)
+        finally:
+            try:
+                if proc.isalive():
+                    proc.terminate(force=True)
+            except Exception:
+                pass
+        return _strip_ansi("".join(chunks))
+
     def _run(self, prompt: str, model: str) -> str:
         path = agy_path() if self.bin == AGY_BIN else (
             self.bin if os.path.isfile(self.bin) else shutil.which(self.bin))
@@ -235,6 +294,20 @@ class AgyClient:
                 "docs/antigravity/install.md 를 참고해 설치 후 `agy` 로 Google 로그인하세요."
             )
 
+        # 1) PTY 캡처 우선 (agy 는 콘솔에 직접 출력하므로 파이프로는 안 잡힘)
+        model_opt = (["--model", AGY_MODEL] if AGY_MODEL else [])
+        argv = [path, "--print", prompt, "--dangerously-skip-permissions", *model_opt]
+        out = self._run_via_pty(argv)
+        if out is not None:
+            text = _extract_text(out)
+            if text.strip():
+                return text
+            err = _classify_error(out, "", 0)
+            if isinstance(err, (AgyNotAuthenticated, AgyQuotaExceeded)):
+                raise err
+            # PTY 로 잡았는데 비었으면 아래 subprocess 폴백 시도
+
+        # 2) subprocess 폴백 (PTY 백엔드 없음/POSIX 등)
         last_err: Optional[Exception] = None
         for cmd in self._candidate_cmds(path, prompt):
             try:
