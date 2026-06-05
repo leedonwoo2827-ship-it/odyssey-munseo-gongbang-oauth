@@ -28,7 +28,7 @@
   </header>
   <div class="bar">
     <button data-cmd="agy&#10;">agy 로그인</button>
-    <button data-cmd="agy logout&#10;">로그아웃(계정전환)</button>
+    <button id="btn-logout">로그아웃(계정전환)</button>
     <button data-cmd="agy models&#10;">모델 목록</button>
     <button data-cmd="agy --help&#10;">명령 목록(help)</button>
     <button id="btn-clear">화면 지우기</button>
@@ -116,6 +116,15 @@
         });
       });
       document.getElementById('btn-clear').addEventListener('click', () => term.clear());
+
+      // 로그아웃(계정전환): agy 자격증명 삭제 → 이후 [agy 로그인]으로 다른 계정 로그인
+      document.getElementById('btn-logout').addEventListener('click', async () => {
+        try {
+          const r = await fetch('/api/agy/logout', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          term.writeln('\r\n\x1b[33m' + (d.message || '로그아웃 처리됨') + '\x1b[0m');
+        } catch (e) { term.writeln('\r\n\x1b[31m로그아웃 실패: ' + e + '\x1b[0m'); }
+      });
 
       // 폴백: 브라우저 내장 터미널 대신 실제 cmd 창을 띄운다.
       document.getElementById('btn-oscmd').addEventListener('click', async () => {

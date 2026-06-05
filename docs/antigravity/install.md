@@ -41,7 +41,7 @@ agy --version
 agy                  # 첫 실행 시 로그인 마법사 → 브라우저에서 Google 로그인(Desktop OAuth)
 ```
 - 대량 문서 생성에는 **Google AI Pro/Ultra 구독 계정** 로그인을 권장(무료는 하루 ~20건 수준).
-- 계정 전환: `agy logout` 후 다시 `agy` 로그인.
+- 계정 전환: 앱 터미널의 **[로그아웃]** 버튼(저장된 자격증명 삭제) 후 다시 `agy` 로그인.
 
 ## 동작 확인
 ```bash

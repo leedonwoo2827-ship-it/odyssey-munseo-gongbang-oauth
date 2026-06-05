@@ -110,6 +110,22 @@ def is_authenticated() -> bool:
     return is_installed() and get_account_email() is not None
 
 
+def logout() -> bool:
+    """agy 자격증명 파일을 삭제해 로그아웃(계정 전환 준비). 삭제했으면 True.
+
+    agy(1.0.5)에는 `logout` 하위명령이 없어, 저장된 OAuth 자격증명을 지우는 방식으로
+    로그아웃한다. 이후 `agy` 를 다시 실행하면 새 Google 계정으로 로그인할 수 있다.
+    """
+    removed = False
+    try:
+        if os.path.isfile(CREDS_PATH):
+            os.remove(CREDS_PATH)
+            removed = True
+    except Exception:
+        pass
+    return removed
+
+
 def status() -> dict:
     """UI/진단용 상태 요약."""
     installed = is_installed()

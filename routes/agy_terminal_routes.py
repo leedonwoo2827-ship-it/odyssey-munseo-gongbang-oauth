@@ -106,6 +106,20 @@ def setup_agy_terminal_routes() -> APIRouter:
                 "ok": False, "message": f"터미널 열기 실패: {e}",
             })
 
+    @router.post("/api/agy/logout")
+    async def agy_logout(request: Request):
+        """agy 자격증명을 지워 로그아웃(계정 전환 준비). 로컬 전용."""
+        if not _client_is_loopback(request):
+            return JSONResponse(status_code=403, content={"ok": False, "message": "로컬에서만 가능합니다."})
+        from services.agy import auth as agy_auth
+        removed = agy_auth.logout()
+        return {
+            "ok": True,
+            "removed": removed,
+            "message": ("로그아웃되었습니다. [agy 로그인] 버튼(또는 실제 cmd 창)에서 다른 Google 계정으로 로그인하세요."
+                        if removed else "이미 로그아웃 상태입니다."),
+        }
+
     @router.get("/api/agy/terminal/diag")
     async def terminal_diag(request: Request):
         """진단: PTY 백엔드/agy 설치 상태 + 호출자 호스트."""
