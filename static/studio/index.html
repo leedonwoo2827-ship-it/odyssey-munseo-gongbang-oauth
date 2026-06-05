@@ -16,9 +16,9 @@
       </div>
     </div>
     <div class="topbar-right">
-      <div class="status" id="status-chip" title="liteLLM 연결 상태">● 확인 중…</div>
+      <div class="status" id="status-chip" title="Gemini(agy) 연결 상태">● 확인 중…</div>
       <button id="open-outputs" class="btn-ghost" title="이 PC에 생성된 산출물 목록">📂 산출물</button>
-      <button id="open-settings" class="btn-ghost" title="회사 URL·API 키 입력">⚙ 연결 설정</button>
+      <button id="open-settings" class="btn-ghost" title="Gemini 연결 상태·터미널">⚙ 연결 상태</button>
     </div>
   </header>
 
@@ -32,25 +32,22 @@
     </div>
   </div>
 
-  <!-- 연결 설정 모달 -->
+  <!-- 연결 상태 모달 -->
   <div id="settings-overlay" class="overlay" style="display:none">
     <div class="modal">
-      <h2>⚙ 연결 설정</h2>
+      <h2>⚙ Gemini 연결 상태</h2>
       <p class="modal-sub" id="settings-intro">
-        회사에서 받은 <b>liteLLM 주소(URL)</b> 와 <b>API 키</b> 를 입력하세요.
-        한 번 저장하면 다음부터는 자동으로 사용됩니다.
+        API 키가 필요 없습니다. 구글 공식 <b>Antigravity CLI(agy)</b> 에 Google 계정으로
+        로그인하면 그 계정 할당량으로 Gemini 를 사용합니다.
       </p>
-      <label>liteLLM 주소 (URL)</label>
-      <input id="set-url" type="text" placeholder="회사에서 받은 주소 (예: http://10.x.x.x:4000)" />
-      <label>API 키 (virtual key)</label>
-      <input id="set-key" type="password" placeholder="sk-..." autocomplete="off" />
-      <div class="modal-status" id="set-status"></div>
+      <div class="modal-status" id="set-status">상태 확인 중…</div>
       <div class="modal-actions">
-        <button id="save-settings" class="btn primary">저장하고 연결 확인</button>
+        <a id="open-terminal" class="btn primary" href="/terminal" target="_blank" rel="noopener">🖥️ agy 터미널 열기</a>
+        <button id="refresh-settings" class="btn">상태 새로고침</button>
         <button id="close-settings" class="btn">닫기</button>
       </div>
-      <p class="modal-hint">키는 이 PC의 <code>data/studio/settings.json</code> 에만 저장됩니다.
-        모르면 담당자에게 <b>URL</b> 과 <b>API 키</b> 를 요청하세요.</p>
+      <p class="modal-hint">터미널에서 <code>agy</code> 로 로그인·계정전환(<code>agy logout</code>)·모델변경·사용량 조회를 할 수 있습니다.
+        대량 생성에는 Google AI Pro/Ultra 계정 로그인을 권장합니다.</p>
     </div>
   </div>
 

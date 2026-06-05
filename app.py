@@ -168,9 +168,15 @@ if AUTH_ENABLED:
         "/api/auth/features",
         "/api/auth/settings",
         "/api/auth/integrations/presets",
+        # Google 로그인(agy 기반) — 로그인 전에 호출되어야 하므로 예외.
+        "/api/auth/google/status",
+        "/api/auth/google/login",
         "/api/health",
         "/api/version",
         "/login",
+        # agy 내장 터미널 페이지 — 최초 agy 로그인을 위해 인증 전 접근 허용.
+        # (WS /api/agy/terminal/ws 는 loopback 으로 자체 제한 + BaseHTTPMiddleware 미적용)
+        "/terminal",
     }
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded
@@ -724,6 +730,14 @@ app.include_router(setup_companion_routes())
 from routes.studio_routes import setup_studio_routes
 app.include_router(setup_studio_routes())
 
+# Google 로그인(agy 기반) — /api/auth/google/*
+from routes.google_auth_routes import setup_google_auth_routes
+app.include_router(setup_google_auth_routes(auth_manager))
+
+# agy 내장 터미널 (WebSocket) — /api/agy/terminal/ws
+from routes.agy_terminal_routes import setup_agy_terminal_routes
+app.include_router(setup_agy_terminal_routes())
+
 # ========= ROUTES (kept in app.py) =========
 
 def _serve_html_with_nonce(request: Request, file_path: str) -> HTMLResponse:
@@ -797,6 +811,11 @@ async def serve_backgrounds(request: Request):
 @app.get("/login")
 async def serve_login(request: Request):
     return _serve_html_with_nonce(request, abs_join(BASE_DIR, "static/login.html"))
+
+@app.get("/terminal")
+async def serve_terminal(request: Request):
+    """agy 내장 터미널 페이지(로그인/계정전환/모델변경/사용량). 최초 로그인 위해 인증 불필요."""
+    return _serve_html_with_nonce(request, abs_join(BASE_DIR, "static/terminal.html"))
 
 @app.get("/api/version")
 async def get_version():

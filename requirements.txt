@@ -40,8 +40,10 @@ croniter
 pytest
 pytest-asyncio
 # ── 문서 생산 스튜디오 (AIM N팀) ─────────────────────────────────
-# liteLLM 프록시 호출(OpenAI 호환) + ubion_llm.py 래퍼
-openai
+# LLM 백엔드는 구글 공식 Antigravity CLI(`agy`) subprocess 호출 — API 키/SDK 불필요.
+# 웹 내장 터미널(agy 로그인/계정전환/모델변경/사용량) PTY 백엔드:
+pywinpty; platform_system == "Windows"
+ptyprocess; platform_system != "Windows"
 requests
 # 레시피 카탈로그(YAML)
 pyyaml

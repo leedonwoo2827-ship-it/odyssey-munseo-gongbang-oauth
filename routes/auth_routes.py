@@ -72,6 +72,15 @@ class SetOpenRegistrationRequest(BaseModel):
 
 SESSION_COOKIE = "odysseus_session"
 
+# 비밀번호 로그인 전면 대체(Google 로그인). 필요 시 ALLOW_PASSWORD_LOGIN=true 로 복구.
+def _password_login_enabled() -> bool:
+    return os.getenv("ALLOW_PASSWORD_LOGIN", "false").lower() == "true"
+
+
+_PW_DISABLED_MSG = (
+    "비밀번호 로그인은 비활성화되었습니다. 'Google로 로그인'을 사용하세요."
+)
+
 
 def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
     router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -87,6 +96,8 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
     @router.post("/setup")
     async def first_run_setup(body: SetupRequest, request: Request):
         """Create initial admin account. Only works if no accounts exist."""
+        if not _password_login_enabled():
+            raise HTTPException(410, _PW_DISABLED_MSG)
         if not _setup_limiter.check(request.client.host):
             raise HTTPException(429, "Too many requests — try again later")
         if auth_manager.is_configured:
@@ -101,6 +112,8 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
     @router.post("/signup")
     async def signup(body: SignupRequest, request: Request):
         """Create a new user account. Only works if signup is enabled by admin."""
+        if not _password_login_enabled():
+            raise HTTPException(410, _PW_DISABLED_MSG)
         if not _signup_limiter.check(request.client.host):
             raise HTTPException(429, "Too many requests — try again later")
         if not auth_manager.is_configured:
@@ -118,6 +131,8 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
 
     @router.post("/login")
     async def login(body: LoginRequest, request: Request, response: Response):
+        if not _password_login_enabled():
+            raise HTTPException(410, _PW_DISABLED_MSG)
         if not _login_limiter.check(request.client.host):
             raise HTTPException(429, "Too many requests — try again later")
         # Verify password first

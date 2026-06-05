@@ -21,10 +21,10 @@ async function init() {
   $("#generate").addEventListener("click", generate);
   $("#refine-btn").addEventListener("click", refine);
   $("#refine").addEventListener("keydown", (e) => { if (e.key === "Enter") refine(); });
-  // 연결 설정 모달
+  // 연결 상태 모달 (agy)
   $("#open-settings").addEventListener("click", () => openSettings(false));
   $("#close-settings").addEventListener("click", closeSettings);
-  $("#save-settings").addEventListener("click", saveSettings);
+  $("#refresh-settings").addEventListener("click", () => openSettings(false));
   // 산출물 목록 모달
   $("#open-outputs").addEventListener("click", openOutputs);
   $("#close-outputs").addEventListener("click", () => { $("#outputs-overlay").style.display = "none"; });
@@ -41,12 +41,12 @@ async function checkHealth() {
     const r = await fetch(`${API}/health`);
     const d = await r.json();
     if (d.llm && d.llm.ok) {
-      chip.textContent = "● liteLLM 연결됨";
+      chip.textContent = "● Gemini(agy) 연결됨";
       chip.className = "status ok";
       chip.title = "";
       return true;
     }
-    chip.textContent = "● 연결 안 됨 — 클릭해 설정";
+    chip.textContent = "● 연결 안 됨 — 클릭해 상태확인";
     chip.className = "status bad";
     chip.title = (d.llm && d.llm.error) || "";
     chip.onclick = () => openSettings(true);
@@ -58,18 +58,27 @@ async function checkHealth() {
   }
 }
 
-// ── 연결 설정 모달 ───────────────────────────────────────
+// ── 연결 상태 모달 (agy) ─────────────────────────────────
 async function openSettings(firstTime) {
+  const st = $("#set-status");
+  st.className = "modal-status"; st.textContent = "상태 확인 중…";
+  $("#settings-overlay").style.display = "flex";
   try {
     const r = await fetch(`${API}/settings`);
     const s = await r.json();
-    $("#set-url").value = s.url || "";
-    $("#set-key").value = "";
-    $("#set-key").placeholder = s.key_set ? `현재: ${s.key_masked} (바꿀 때만 입력)` : "sk-...";
-    $("#set-status").textContent = "";
-    $("#settings-intro").style.display = firstTime ? "block" : "block";
-  } catch (e) { /* 무시 */ }
-  $("#settings-overlay").style.display = "flex";
+    if (!s.installed) {
+      st.className = "modal-status bad";
+      st.textContent = "✗ Antigravity CLI(agy)가 설치되어 있지 않습니다. 아래 터미널에서 설치/로그인하세요.";
+    } else if (!s.authenticated) {
+      st.className = "modal-status bad";
+      st.textContent = "✗ agy 에 Google 로그인이 필요합니다. 아래 '터미널 열기' → agy 로그인.";
+    } else {
+      st.className = "modal-status ok";
+      st.textContent = `✓ 연결됨 — 계정: ${s.email || ""} · 기본모델: ${s.default_model || ""}`;
+    }
+  } catch (e) {
+    st.className = "modal-status bad"; st.textContent = "✗ 상태 확인 실패: " + e;
+  }
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
@@ -99,31 +108,6 @@ async function openOutputs() {
     });
   } catch (e) {
     box.innerHTML = '<div class="empty">목록을 불러오지 못했습니다.</div>';
-  }
-}
-
-async function saveSettings() {
-  const url = $("#set-url").value.trim();
-  const key = $("#set-key").value.trim();
-  const st = $("#set-status");
-  st.className = "modal-status"; st.textContent = "저장하고 연결 확인 중…";
-  try {
-    const r = await fetch(`${API}/settings`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, key }),
-    });
-    const d = await r.json();
-    const ok = d.health && d.health.ok;
-    if (ok) {
-      st.className = "modal-status ok"; st.textContent = "✓ 연결 성공! 이제 문서를 만들 수 있어요.";
-      await checkHealth();
-      setTimeout(closeSettings, 900);
-    } else {
-      st.className = "modal-status bad";
-      st.textContent = "✗ 연결 실패: " + ((d.health && d.health.error) || "URL/키/사내망(VPN)을 확인하세요.");
-    }
-  } catch (e) {
-    st.className = "modal-status bad"; st.textContent = "✗ 요청 실패: " + e;
   }
 }
 

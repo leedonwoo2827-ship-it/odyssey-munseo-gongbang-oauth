@@ -148,25 +148,19 @@ def setup_studio_routes():
 
     @router.get("/settings")
     async def get_settings():
-        """현재 연결 설정(키는 마스킹). 첫 화면에서 안내/자동표시에 사용."""
-        url, key = config.get_litellm()
-        s = config.load_settings()
-        source = "saved" if s.get("litellm_key") else ("env" if key else "none")
-        return {
-            "url": url,
-            "key_set": bool(key),
-            "key_masked": config.mask_key(key),
-            "source": source,
-            "default_url": config.DEFAULT_LITELLM_URL,
-        }
+        """LLM 연결 상태. API 키 입력이 없다 — agy(Antigravity CLI) 설치/로그인 여부를 표시.
 
-    @router.post("/settings")
-    async def save_settings(request: Request):
-        """화면에서 입력한 URL/키 저장 → 즉시 적용 후 연결 점검 결과 반환."""
-        body = await request.json()
-        config.save_settings(body.get("url"), body.get("key"))
-        return {"saved": True, "health": llm.health(),
-                "settings": await get_settings()}
+        (과거 liteLLM URL/키 입력 방식을 대체.)
+        """
+        from services.agy import auth as agy_auth
+        st = agy_auth.status()
+        return {
+            "backend": "antigravity-cli",
+            "installed": st["installed"],
+            "authenticated": st["authenticated"],
+            "email": st["email"],
+            "default_model": config.DEFAULT_MODEL,
+        }
 
     @router.get("/health")
     async def health():

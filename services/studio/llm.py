@@ -1,7 +1,8 @@
-"""LLM 호출 래퍼 — 회사 방침에 따라 Ubion liteLLM 프록시로만 라우팅.
+"""LLM 호출 래퍼 — 구글 공식 Antigravity CLI(`agy`)로 라우팅.
 
-루트의 ubion_llm.py(UbionClient) 를 지연 로딩한다.
-(ubion_llm 은 import 시점에 UBION_LITELLM_KEY 를 요구하므로 절대 모듈 최상위에서 import 하지 않는다.)
+API 키를 쓰지 않는다. 인증/할당량은 agy 가 담당하며(사용자가 `agy` 에 1회 Google 로그인),
+여기서는 services.agy.AgyClient(드롭인) 를 통해 비대화식 호출 결과만 받는다.
+(과거 회사 liteLLM 프록시(ubion_llm) 의존은 제거됨.)
 """
 from __future__ import annotations
 
@@ -12,43 +13,38 @@ from typing import Any, Dict, List, Optional
 from . import config
 
 _client = None
-_client_sig = None  # (url, key) — 설정이 바뀌면 클라이언트 재생성
 
 
 class LLMConfigError(RuntimeError):
-    """프록시 키/URL 미설정 등 설정 문제."""
+    """agy 미설치/미로그인 등 '설정' 성격의 문제(파이프라인이 친절히 표시)."""
 
 
 def _get_client():
-    """UbionClient — 화면 '연결 설정'(settings.json) 값을 최우선으로 사용.
-
-    설정(URL/키)이 바뀌면 재시작 없이 즉시 새 클라이언트로 교체한다.
-    """
-    global _client, _client_sig
-    url, key = config.get_litellm()
-    if not key:
+    """AgyClient 싱글톤. agy 미설치면 LLMConfigError 로 친절히 안내."""
+    global _client
+    from services.agy import auth as agy_auth
+    if not agy_auth.is_installed():
         raise LLMConfigError(
-            "liteLLM 연결이 아직 설정되지 않았습니다.\n"
-            "화면 오른쪽 위 '⚙ 연결 설정'을 눌러, 회사에서 받은 URL과 API 키를 입력하세요."
+            "Antigravity CLI(`agy`)가 설치되어 있지 않습니다.\n"
+            "docs/antigravity/install.md 를 참고해 설치한 뒤, 터미널에서 `agy` 를 한 번 실행해 "
+            "Google 계정으로 로그인하세요."
         )
-    sig = (url, key)
-    if _client is not None and _client_sig == sig:
-        return _client
-    try:
-        # 루트 ubion_llm.py 의 클래스를 직접 인스턴스화(모듈 로드 시 자동생성 client 회피)
-        from ubion_llm import UbionClient
-        _client = UbionClient(base_url=url, api_key=key)
-        _client_sig = sig
-    except Exception as e:
-        raise LLMConfigError(f"liteLLM 클라이언트 초기화 실패: {e}") from e
+    if _client is None:
+        from services.agy import AgyClient
+        _client = AgyClient()
     return _client
 
 
 def chat(messages: List[Dict[str, str]], model: Optional[str] = None,
          max_tokens: int = 4000) -> str:
     """messages(OpenAI 형식) → 응답 텍스트."""
+    from services.agy import AgyNotInstalled, AgyNotAuthenticated
     client = _get_client()
-    resp = client.chat(model or config.DEFAULT_MODEL, messages, max_tokens=max_tokens)
+    try:
+        resp = client.chat(model or config.DEFAULT_MODEL, messages, max_tokens=max_tokens)
+    except (AgyNotInstalled, AgyNotAuthenticated) as e:
+        # 설정 성격의 오류는 LLMConfigError 로 변환해 파이프라인이 안내문으로 표시
+        raise LLMConfigError(str(e)) from e
     return resp.text or ""
 
 

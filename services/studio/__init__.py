@@ -13,7 +13,7 @@ NotebookLM 스튜디오처럼 "버튼"으로 동작한다:
   - 생성 후 채팅(refine) → 초안 재생성
 
 레시피 = knowledge/recipes/*.yaml (필요 입력 + 프롬프트 + 출력형식).
-LLM 호출은 회사 방침에 따라 Ubion liteLLM 프록시(ubion_llm.py)로 라우팅한다.
+LLM 호출은 구글 공식 Antigravity CLI(`agy`, services/agy)로 라우팅한다(API 키 불필요).
 """
 
 from . import config  # noqa: F401

@@ -39,16 +39,37 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 
-REM 4) 최초 설정 - 데이터 폴더 / DB 초기화 (프롬프트 없이)
-echo [3/3] 최초 설정 - 데이터 폴더/DB 초기화...
+REM 4) Antigravity CLI(agy) 설치 - LLM 호출 백엔드(키 불필요)
+echo [3/4] Antigravity CLI(agy) 설치 확인...
+where agy >nul 2>nul
+if errorlevel 1 (
+  echo       agy 가 없어 설치를 시도합니다 ^(인터넷 필요^)...
+  curl -fsSL https://antigravity.google/cli/install.cmd -o "%TEMP%\agy_install.cmd" && call "%TEMP%\agy_install.cmd" & del "%TEMP%\agy_install.cmd" 2>nul
+  where agy >nul 2>nul
+  if errorlevel 1 (
+    echo       [안내] agy 자동설치 실패. docs\antigravity\install.md 참고해 수동 설치하세요.
+  ) else (
+    echo       [확인] agy 설치됨
+  )
+) else (
+  echo       [확인] agy 이미 설치됨
+)
+
+REM 5) 최초 설정 - 데이터 폴더 / DB 초기화 (프롬프트 없이)
+echo [4/4] 최초 설정 - 데이터 폴더/DB 초기화...
 set "ODYSSEUS_SKIP_ADMIN_PROMPT=1"
 "%VPY%" setup.py
 
 echo.
 echo ============================================================
-echo   설치 완료!  이제 run.bat 을 더블클릭하세요.
+echo   설치 완료!  남은 건 'Google 로그인 최초 1회' 뿐입니다.
 echo.
-echo   * 회사 liteLLM 주소와 API 키는 실행 후 화면의
-echo     '연결 설정' 창에서 입력하면 됩니다. 자동으로 뜹니다.
+echo   아래 중 편한 방법으로 Google 로그인(브라우저에서 계정 선택):
+echo     (A) run.bat 실행 후, 화면의 'agy 터미널 열기' 에서  agy  입력
+echo     (B) 또는 이 창에 직접:   agy
+echo.
+echo   그다음 run.bat 더블클릭 -^> 브라우저에서 'Google로 로그인'.
+echo   * API 키 입력 없음(Google 계정 할당량 사용).
+echo   * 문서를 많이 뽑으려면 Google AI Pro/Ultra 계정 로그인 권장.
 echo ============================================================
 pause

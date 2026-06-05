@@ -428,6 +428,62 @@ class AuthManager:
         self._save_sessions()
         return token
 
+    # ------------------------------------------------------------------
+    # Google OAuth (passwordless) — login is delegated to the official
+    # Antigravity CLI(`agy`); we provision the account by email and mint a
+    # session without a password. See routes/google_auth_routes.py.
+    # ------------------------------------------------------------------
+
+    def ensure_oauth_user(self, email: str, is_admin: bool = False) -> Optional[str]:
+        """Provision (or return) a passwordless account for a Google email.
+
+        The email (lowercased) becomes the username and the owner key, reusing
+        the existing owner-scoped multi-user data model. Returns the username,
+        or None if the email is invalid / reserved.
+        """
+        username = (email or "").strip().lower()
+        if not username or "@" not in username:
+            return None
+        if username in RESERVED_USERNAMES:
+            logger.warning("Refused to provision reserved username '%s'", username)
+            return None
+        if username in self.users:
+            # Promote to admin if requested and not already.
+            if is_admin and not self.users[username].get("is_admin"):
+                self._config["users"][username]["is_admin"] = True
+                self._config["users"][username]["privileges"] = dict(ADMIN_PRIVILEGES)
+                self._save()
+            return username
+        # Random unguessable password — OAuth users never log in with it.
+        self._config.setdefault("users", {})[username] = {
+            "password_hash": _hash_password(secrets.token_hex(32)),
+            "created": time.time(),
+            "is_admin": is_admin,
+            "privileges": dict(ADMIN_PRIVILEGES if is_admin else DEFAULT_PRIVILEGES),
+            "oauth": "google",
+        }
+        self._save()
+        logger.info(f"Provisioned OAuth user '{username}' (admin={is_admin})")
+        return username
+
+    def create_session_for_user(self, username: str) -> Optional[str]:
+        """Mint a session token for an already-authenticated user (no password).
+
+        Used by the Google/agy login flow after identity is established
+        externally. Only succeeds for an existing account.
+        """
+        username = (username or "").strip().lower()
+        if username not in self.users:
+            return None
+        token = secrets.token_hex(32)
+        with self._sessions_lock:
+            self._sessions[token] = {
+                "username": username,
+                "expiry": time.time() + TOKEN_TTL,
+            }
+        self._save_sessions()
+        return token
+
     def validate_token(self, token: Optional[str]) -> bool:
         if not token:
             return False
