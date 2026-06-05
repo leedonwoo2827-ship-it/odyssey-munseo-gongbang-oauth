@@ -17,14 +17,19 @@ A. `.env` 의 `APP_PORT` 를 8000 등으로 바꾸고, `run.bat` 의 `--port 700
 **Q. run.bat 을 눌렀는데 브라우저가 비어 있어요.**
 A. 서버 기동 중일 수 있습니다. 5~10초 뒤 새로고침. 콘솔에 `Application startup complete` 가 보이면 준비 완료.
 
-## LLM / 연결
+## LLM / 로그인 (Antigravity · Google)
 
-**Q. 우측 상단이 🔴 미연결 이에요.**
-A. ① 사내망/VPN 연결 확인 ② `.env` 의 `UBION_LITELLM_KEY` 확인 ③ `venv\Scripts\python sanity-check.py`
-실행해 원인 확인. → [06 문서](06_liteLLM_연결과_모델.md)
+**Q. 우측 상단이 🔴 연결 안 됨 이에요.**
+A. agy 미설치 또는 Google 미로그인입니다. ① `agy --version` 으로 설치 확인 ② 우측 상단 **⚙ 연결 상태**
+→ **agy 터미널 열기** 에서 `agy` 로 Google 로그인 ③ `venv\Scripts\python sanity-check-agy.py` 로 원인 확인.
+→ [Antigravity 설치](../antigravity/install.md)
 
-**Q. 생성 중 오류: "키가 설정되지 않았습니다".**
-A. `setup.bat` 을 다시 실행하거나 `.env` 에 `UBION_LITELLM_KEY` 를 채운 뒤 앱 재시작.
+**Q. 생성 중 오류: "agy 미설치/미로그인" 또는 "Google 로그인이 필요합니다".**
+A. 터미널/내장터미널에서 `agy` 실행 후 Google 로그인하세요(최초 1회). **API 키는 필요 없습니다.**
+
+**Q. "할당량(quota)을 초과했습니다" 라고 나와요.**
+A. 그 Google 계정의 일/주 할당량 한도입니다. 잠시 후 다시 시도하거나, 더 큰 할당량의
+**Google AI Pro/Ultra** 계정으로 `agy logout` 후 다시 로그인하세요. (무료는 하루 ~20건 수준)
 
 ## 입력/추출
 
