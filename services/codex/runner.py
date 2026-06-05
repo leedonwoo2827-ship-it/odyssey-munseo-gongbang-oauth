@@ -83,6 +83,38 @@ _MODELS_CACHE: Optional[List[str]] = None
 _MODEL_ID_RE = re.compile(r"^(gpt|o\d|chatgpt|codex)[A-Za-z0-9.\-_]*$", re.IGNORECASE)
 
 
+def _parse_models(out: str) -> List[str]:
+    """`codex debug models` 출력 파싱. 최신 codex 는 JSON({"models":[{slug,..}]})을 낸다.
+    실패하면 줄 단위 휴리스틱으로 폴백. visibility='hide' 인 내부 모델은 제외."""
+    out = (out or "").strip()
+    # 1) JSON 우선 (출력 앞뒤 잡음 대비해 첫 '{' ~ 마지막 '}' 만 잘라 시도)
+    if "{" in out and '"models"' in out:
+        try:
+            blob = out[out.index("{"): out.rindex("}") + 1]
+            data = json.loads(blob)
+            ids: List[str] = []
+            for m in data.get("models", []):
+                if not isinstance(m, dict):
+                    continue
+                if str(m.get("visibility", "")).lower() == "hide":
+                    continue
+                slug = (m.get("slug") or m.get("id") or m.get("name") or "").strip()
+                if slug and slug not in ids:
+                    ids.append(slug)
+            if ids:
+                return ids
+        except Exception:
+            pass
+    # 2) 폴백: 줄 단위에서 모델 ID 형태 토큰 추출
+    models: List[str] = []
+    for line in out.splitlines():
+        s = line.strip().strip("-*•> \t")
+        tok = s.split()[0] if s.split() else ""
+        if _MODEL_ID_RE.match(tok) and tok not in models:
+            models.append(tok)
+    return models
+
+
 def list_models(force: bool = False) -> List[str]:
     """`codex debug models` 출력에서 모델 ID 추출(캐시). 실패 시 빈 목록."""
     global _MODELS_CACHE
@@ -94,14 +126,8 @@ def list_models(force: bool = False) -> List[str]:
     models: List[str] = []
     try:
         p = subprocess.run([path, "debug", "models"], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=30)
-        out = (p.stdout or "") + "\n" + (p.stderr or "")
-        for line in out.splitlines():
-            s = line.strip().strip("-*•> \t")
-            # 토큰 첫 단어가 모델 ID 형태면 채택
-            tok = s.split()[0] if s.split() else ""
-            if _MODEL_ID_RE.match(tok) and tok not in models:
-                models.append(tok)
+                           encoding="utf-8", errors="replace", timeout=45)
+        models = _parse_models((p.stdout or "") + "\n" + (p.stderr or ""))
     except Exception:
         pass
     if models:

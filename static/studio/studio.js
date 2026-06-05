@@ -118,6 +118,8 @@ async function loadModelOptions() {
   try {
     const r = await fetch(`/api/llm/models`);
     const d = await r.json();
+    const def = sel.querySelector("option[value='']");
+    if (def) def.textContent = d.provider === "codex" ? "기본값 (codex 자동 선택)" : "기본값 (agy 자동 선택)";
     (d.models || []).forEach((m) => {
       const o = document.createElement("option");
       o.value = m; o.textContent = m; sel.appendChild(o);
