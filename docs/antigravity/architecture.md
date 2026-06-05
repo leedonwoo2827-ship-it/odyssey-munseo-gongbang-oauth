@@ -19,7 +19,7 @@
   │
   └─ services/studio (문서 생성)
         llm.py → services/agy/AgyClient.chat()
-                    └ subprocess: agy --print "<prompt>" --output-format json --model <m>
+                    └ subprocess: agy --print "<prompt>"  (평문 응답; 옵션 안 맞으면 자동 폴백)
                                        │ 인증·할당량은 agy 가 담당
                                        ▼
                               [agy] → Google 계정 할당량으로 Gemini 응답

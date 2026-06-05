@@ -25,7 +25,7 @@ Gemini 를 쓰는 방식**으로 전환하기 위한 기술 조사 기록.
   토큰은 `~/.antigravity/oauth_creds.json` 에 저장되고 자동 갱신된다(키 관리 불필요).
 - 호출(비대화식):
   ```
-  agy --print "<프롬프트>" --output-format json --model <모델> --print-timeout <t>s --dangerously-skip-permissions
+  agy --print "<프롬프트>" --dangerously-skip-permissions   (평문 응답; agy 1.0.5엔 --output-format 없음)
   ```
   JSON `response` 필드에서 응답 텍스트를 추출한다. (신생 기능이라 stdout 스키마/버그 변동 가능 →
   관용적 파싱 + plain-text 폴백을 둔다.)

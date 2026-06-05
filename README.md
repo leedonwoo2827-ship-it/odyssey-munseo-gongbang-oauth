@@ -55,7 +55,7 @@ agy
 
 REM 3) 정상 동작 확인
 agy --version
-agy -p "say OK" --output-format json
+agy --print "say OK"
 
 REM 4) 파이썬 가상환경 + 라이브러리 설치 (프로젝트 폴더에서)
 py -3 -m venv venv

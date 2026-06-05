@@ -2,7 +2,7 @@
 
 설계 의도(중요):
 - API 키를 쓰지 않는다. 인증/할당량은 전적으로 `agy` 가 담당한다(사용자가 `agy` 에 1회
-  Google 로그인). 우리 앱은 비대화식 호출(`agy --print ... --output-format json`)의 결과만 받는다.
+  Google 로그인). 우리 앱은 비대화식 호출(`agy --print ...`)의 결과(평문)만 받는다.
 - 회사 LiteLLM 프록시(ubion_llm.UbionClient)의 `.chat(model, messages, max_tokens)` 시그니처를
   그대로 재현하여, services/studio/llm.py 의 호출부를 거의 손대지 않고 교체할 수 있게 한다.
 
@@ -124,10 +124,10 @@ def _classify_error(stdout: str, stderr: str, returncode: int) -> AgyError:
 
 
 def _extract_text(stdout: str) -> str:
-    """agy --output-format json stdout 에서 모델 응답 텍스트를 추출.
+    """agy --print stdout(평문, 드물게 JSON)에서 모델 응답 텍스트를 추출.
 
-    agy 출력 스키마가 신생 기능이라 변동 가능 → 여러 후보 키를 관용적으로 탐색하고,
-    JSON 파싱이 안 되면 stdout 자체를 텍스트로 사용(--output-format 미지원/버그 폴백).
+    agy --print 는 평문을 출력한다. 혹시 JSON 이면 여러 후보 키를 관용적으로 탐색하고,
+    아니면 stdout 평문을 그대로 사용한다.
     """
     raw = (stdout or "").strip()
     if not raw:
@@ -204,20 +204,17 @@ class AgyClient:
         실패하면 점점 단순한 명령으로 폴백한다. --model 은 AGY_MODEL 이 설정된 경우만 넘긴다
         (미설정 시 agy 기본 모델 사용 — 가장 호환성 높음).
         """
+        # NOTE: agy(>=1.0.5)에는 --output-format 옵션이 없다. --print 는 평문으로 응답한다.
+        # 유효 옵션: --print/-p, --model, --dangerously-skip-permissions, --print-timeout.
         model_opt = (["--model", AGY_MODEL] if AGY_MODEL else [])
         variants: List[List[str]] = []
-        # 1) json + (model) + skip-permissions
-        variants.append([path, "--print", prompt, "--output-format", "json", *model_opt,
-                         "--dangerously-skip-permissions"])
-        # 2) json + (model)
-        variants.append([path, "--print", prompt, "--output-format", "json", *model_opt])
-        # 3) json only
-        variants.append([path, "--print", prompt, "--output-format", "json"])
-        # 4) skip-permissions, plain text
-        variants.append([path, "--print", prompt, "--dangerously-skip-permissions"])
-        # 5) plain text
+        # 1) skip-permissions + (model) — 비대화식에서 권한 프롬프트로 멈추지 않게
+        variants.append([path, "--print", prompt, "--dangerously-skip-permissions", *model_opt])
+        # 2) (model)
+        variants.append([path, "--print", prompt, *model_opt])
+        # 3) 최소 형태
         variants.append([path, "--print", prompt])
-        # 6) -p alias, plain text
+        # 4) -p 별칭
         variants.append([path, "-p", prompt])
         # 중복 제거(순서 유지)
         seen = set()

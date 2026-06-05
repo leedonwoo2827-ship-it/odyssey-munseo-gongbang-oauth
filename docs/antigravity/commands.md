@@ -13,10 +13,12 @@ API 키는 필요 없고, Google 계정 로그인으로 그 계정 할당량을 
 | **로그아웃 / 계정 전환** | `agy logout` | 로그아웃 후 다시 `agy` 로 다른 계정 로그인 |
 | **버전 확인** | `agy --version` | 설치/버전 확인 |
 | **명령 목록(도움말)** | `agy --help` | 사용 가능한 모든 명령·옵션 (가장 정확한 출처) |
-| **단발 질의(비대화식)** | `agy -p "프롬프트"` | 한 번 묻고 답만 출력. 스크립트/자동화용 |
-| **JSON 출력** | `agy -p "프롬프트" --output-format json` | 결과를 JSON 으로 (앱이 내부적으로 이렇게 호출) |
-| **모델 지정** | `agy -p "..." --model gemini-3-pro` | 모델 선택 (예: `gemini-3-pro`, `gemini-3-flash`) |
-| **권한 자동승인** | `agy -p "..." --dangerously-skip-permissions` | 비대화식에서 확인 프롬프트 생략 |
+| **단발 질의(비대화식)** | `agy --print "프롬프트"` | 한 번 묻고 답(평문)만 출력. 앱이 내부적으로 이렇게 호출 |
+| **모델 지정** | `agy --print "..." --model <이름>` | 모델 선택. 사용 가능한 이름은 `agy models` 로 확인 |
+| **사용 가능한 모델 목록** | `agy models` | 현재 계정에서 쓸 수 있는 모델 ID 목록 |
+| **권한 자동승인** | `agy --print "..." --dangerously-skip-permissions` | 비대화식에서 확인 프롬프트 생략 |
+
+> 참고: agy 1.0.5 기준 `--output-format` 옵션은 **없습니다**. `--print` 는 평문을 출력합니다.
 
 > 화면의 버튼이 실제로 보내는 명령:
 > - **agy 로그인** → `agy`
@@ -31,9 +33,9 @@ API 키는 필요 없고, Google 계정 로그인으로 그 계정 할당량을 
 
 ## 동작 확인 한 줄
 ```bash
-agy -p "say OK" --output-format json
+agy --print "say OK"
 ```
-JSON 응답이 나오면 정상입니다.
+응답(예: OK)이 나오면 정상입니다.
 
 ## 설치
 설치 방법은 [install.md](install.md) 참고. (Windows cmd / Git Bash / macOS)
