@@ -64,10 +64,15 @@ def set_model(name: str) -> None:
     except Exception:
         pass
 
-# agy 가 PATH 에 없을 때 확인할 기본 설치 위치
+# agy 가 PATH 에 없을 때 확인할 기본 설치 위치(uvicorn 프로세스 PATH 누락 대비).
+# 실제 설치 위치는 %LOCALAPPDATA%\agy\bin\agy.exe (Antigravity 본체와 별도).
 _FALLBACK_AGY_PATHS = [
+    os.path.expandvars(r"%LOCALAPPDATA%\agy\bin\agy.exe"),
+    os.path.expandvars(r"%LOCALAPPDATA%\agy\bin\agy.cmd"),
+    os.path.expandvars(r"%LOCALAPPDATA%\Programs\agy\bin\agy.exe"),
     os.path.expandvars(r"%LOCALAPPDATA%\Antigravity\agy.exe"),
     os.path.expanduser("~/.local/bin/agy"),
+    os.path.expanduser("~/.agy/bin/agy"),
 ]
 
 # 문서 생성기로 쓰기 위한 가드(코딩 에이전트의 도구사용/파일조작 억제).
