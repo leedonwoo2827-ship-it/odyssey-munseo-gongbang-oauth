@@ -92,3 +92,6 @@ _scratch/
 test_dev_api_key.txt
 data/studio/settings.json
 
+
+# 런타임 로그
+setup_log.txt
