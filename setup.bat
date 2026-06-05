@@ -47,20 +47,25 @@ if errorlevel 1 (
 "%VPY%" -c "import winpty" 2>nul && echo       [확인] 내장 터미널 구성요소 OK || echo       [경고] pywinpty 설치 실패 - 내장 터미널 대신 cmd 에서 agy 직접 실행하세요
 
 REM 4) Antigravity CLI(agy) 설치 - LLM 호출 백엔드(키 불필요)
+REM    주의: agy 설치 스크립트가 내부에서 exit 를 호출해도 이 창이 닫히지 않도록
+REM          반드시 'cmd /c' 로 격리 실행한다(부모 배치 보호).
 echo [3/4] Antigravity CLI(agy) 설치 확인...
 where agy >nul 2>nul
-if errorlevel 1 (
-  echo       agy 가 없어 설치를 시도합니다 ^(인터넷 필요^)...
-  curl -fsSL https://antigravity.google/cli/install.cmd -o "%TEMP%\agy_install.cmd" && call "%TEMP%\agy_install.cmd" & del "%TEMP%\agy_install.cmd" 2>nul
-  where agy >nul 2>nul
-  if errorlevel 1 (
-    echo       [안내] agy 자동설치 실패. docs\antigravity\install.md 참고해 수동 설치하세요.
-  ) else (
-    echo       [확인] agy 설치됨
-  )
-) else (
+if not errorlevel 1 (
   echo       [확인] agy 이미 설치됨
+  goto after_agy
 )
+echo       agy 가 없어 설치를 시도합니다 ^(인터넷 필요^)...
+curl -fsSL https://antigravity.google/cli/install.cmd -o "%TEMP%\agy_install.cmd"
+if exist "%TEMP%\agy_install.cmd" cmd /c "%TEMP%\agy_install.cmd"
+del "%TEMP%\agy_install.cmd" >nul 2>nul
+where agy >nul 2>nul
+if errorlevel 1 (
+  echo       [안내] agy 자동설치 실패. docs\antigravity\install.md 참고해 수동 설치하세요.
+) else (
+  echo       [확인] agy 설치됨
+)
+:after_agy
 
 REM 5) 최초 설정 - 데이터 폴더 / DB 초기화 (프롬프트 없이)
 echo [4/4] 최초 설정 - 데이터 폴더/DB 초기화...
