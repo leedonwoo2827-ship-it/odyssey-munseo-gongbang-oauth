@@ -14,7 +14,8 @@ import json
 import logging
 import threading
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +38,49 @@ def _is_direct_loopback(ws: WebSocket) -> bool:
 def setup_agy_terminal_routes() -> APIRouter:
     router = APIRouter(tags=["agy-terminal"])
 
+    @router.get("/api/agy/terminal/diag")
+    async def terminal_diag(request: Request):
+        """진단: PTY 백엔드/agy 설치 상태 + 호출자 호스트."""
+        from services.agy.pty_terminal import diag
+        host = request.client.host if request.client else None
+        d = diag()
+        d["client_host"] = host
+        d["loopback_ok"] = host in ("127.0.0.1", "::1")
+        return JSONResponse(d)
+
     @router.websocket("/api/agy/terminal/ws")
     async def terminal_ws(ws: WebSocket):
         if not _is_direct_loopback(ws):
-            await ws.close(code=1008)
-            return
-
-        from services.agy.pty_terminal import PtySession, backend_available
-        if not backend_available():
             await ws.accept()
             await ws.send_text(json.dumps({
                 "type": "error",
-                "data": ("PTY 백엔드가 없습니다. 설치 필요: pip install pywinpty (Windows) "
-                         "또는 ptyprocess (macOS/Linux).\r\n"),
+                "data": ("이 터미널은 로컬(127.0.0.1) 접속에서만 사용할 수 있습니다.\r\n"),
             }))
-            await ws.close()
+            # 메시지가 렌더되도록 즉시 닫지 않고 입력 대기로 유지
+            try:
+                while True:
+                    await ws.receive_text()
+            except Exception:
+                pass
+            return
+
+        from services.agy.pty_terminal import PtySession, backend_available, diag
+        if not backend_available():
+            await ws.accept()
+            d = diag()
+            await ws.send_text(json.dumps({
+                "type": "error",
+                "data": ("[PTY 백엔드 없음] 내장 터미널을 쓰려면 설치가 필요합니다:\r\n"
+                         "  pip install pywinpty   (Windows)\r\n"
+                         "  pip install ptyprocess (macOS/Linux)\r\n\r\n"
+                         "또는 윈도우 cmd 에서 직접 `agy` 를 실행해 로그인해도 됩니다.\r\n"
+                         f"\r\n진단: {json.dumps(d, ensure_ascii=False)}\r\n"),
+            }))
+            try:
+                while True:
+                    await ws.receive_text()
+            except Exception:
+                pass
             return
 
         await ws.accept()
@@ -59,8 +88,13 @@ def setup_agy_terminal_routes() -> APIRouter:
         try:
             session = PtySession()
         except Exception as e:
-            await ws.send_text(json.dumps({"type": "error", "data": f"터미널 시작 실패: {e}\r\n"}))
-            await ws.close()
+            logger.warning("agy terminal spawn failed: %r", e)
+            await ws.send_text(json.dumps({"type": "error", "data": f"터미널 시작 실패: {e!r}\r\n"}))
+            try:
+                while True:
+                    await ws.receive_text()
+            except Exception:
+                pass
             return
 
         stop = threading.Event()

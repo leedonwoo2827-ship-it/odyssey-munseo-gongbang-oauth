@@ -51,38 +51,66 @@
       term.open(document.getElementById('term'));
       fit.fit();
 
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/api/agy/terminal/ws`);
-
       function setStatus(text, cls) {
         statusEl.textContent = text;
         statusEl.className = cls || '';
       }
 
-      ws.onopen = () => {
-        setStatus('연결됨', 'ok');
-        sendResize();
-      };
-      ws.onclose = () => setStatus('연결 종료 — 새로고침하세요', 'bad');
-      ws.onerror = () => setStatus('연결 오류', 'bad');
-      ws.onmessage = (ev) => {
-        let msg;
-        try { msg = JSON.parse(ev.data); } catch { term.write(ev.data); return; }
-        if (msg.type === 'out' || msg.type === 'error') term.write(msg.data);
-        else if (msg.type === 'exit') { term.write('\r\n[세션 종료]\r\n'); setStatus('세션 종료', 'bad'); }
-      };
-
-      term.onData((d) => { if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: d })); });
-
+      let ws = null;
       function sendResize() {
-        if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
       }
+
+      function connect() {
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws = new WebSocket(`${proto}://${location.host}/api/agy/terminal/ws`);
+        ws.onopen = () => { setStatus('연결됨', 'ok'); sendResize(); };
+        ws.onclose = (ev) => setStatus(`연결 종료 (code ${ev.code}${ev.reason ? ' · ' + ev.reason : ''}) — 새로고침`, 'bad');
+        ws.onerror = () => setStatus('연결 오류', 'bad');
+        ws.onmessage = (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch { term.write(ev.data); return; }
+          if (msg.type === 'out' || msg.type === 'error') term.write(msg.data);
+          else if (msg.type === 'exit') { term.write('\r\n[세션 종료]\r\n'); setStatus('세션 종료', 'bad'); }
+        };
+        term.onData((d) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: d })); });
+      }
+
+      // 먼저 진단을 받아 화면에 표시 → 원인을 즉시 알 수 있게.
+      (async () => {
+        try {
+          const r = await fetch('/api/agy/terminal/diag');
+          const d = await r.json();
+          if (!d.loopback_ok) {
+            term.writeln('\x1b[31m이 터미널은 로컬(127.0.0.1)에서만 동작합니다. 현재 host=' + d.client_host + '\x1b[0m');
+          }
+          if (!d.pty_available) {
+            term.writeln('\x1b[33m[PTY 백엔드 없음] 내장 터미널을 쓰려면 설치가 필요합니다:\x1b[0m');
+            term.writeln('  Windows : pip install pywinpty');
+            term.writeln('  macOS/Linux : pip install ptyprocess');
+            term.writeln('  (venv 사용 시: venv\\Scripts\\python -m pip install pywinpty)');
+            if (d.pty_import_error) term.writeln('  사유: ' + d.pty_import_error);
+            term.writeln('');
+            term.writeln('\x1b[36m대안: 윈도우 cmd 를 직접 열어  agy  를 실행해 Google 로그인해도 됩니다.\x1b[0m');
+            setStatus('PTY 미설치 — 위 안내 참고', 'bad');
+            if (!d.agy_installed) term.writeln('\x1b[33m참고: agy 도 아직 설치되지 않았습니다 (docs/antigravity/install.md).\x1b[0m');
+            return; // WS 연결 시도하지 않음
+          }
+          if (!d.agy_installed) {
+            term.writeln('\x1b[33m참고: agy 가 설치되지 않았습니다. 셸에서 설치 후 `agy` 로 로그인하세요 (docs/antigravity/install.md).\x1b[0m');
+          }
+        } catch (e) {
+          term.writeln('진단 호출 실패: ' + e);
+        }
+        connect();
+      })();
+
       window.addEventListener('resize', () => { fit.fit(); sendResize(); });
 
       document.querySelectorAll('.bar button[data-cmd]').forEach((b) => {
         b.addEventListener('click', () => {
           const cmd = b.getAttribute('data-cmd');
-          if (ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: cmd }));
+          if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: cmd }));
           term.focus();
         });
       });

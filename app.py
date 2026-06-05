@@ -177,6 +177,7 @@ if AUTH_ENABLED:
         # agy 내장 터미널 페이지 — 최초 agy 로그인을 위해 인증 전 접근 허용.
         # (WS /api/agy/terminal/ws 는 loopback 으로 자체 제한 + BaseHTTPMiddleware 미적용)
         "/terminal",
+        "/api/agy/terminal/diag",
     }
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded

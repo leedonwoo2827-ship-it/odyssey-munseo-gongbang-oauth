@@ -17,20 +17,38 @@ import sys
 from typing import List, Optional
 
 # ── PtyProcess 구현체 선택 ───────────────────────────────────────────────
+_IMPORT_ERROR = None
 try:  # Windows
     from winpty import PtyProcess  # type: ignore
     _BACKEND = "winpty"
-except Exception:  # POSIX — Unicode 변형으로 str I/O 통일
+except Exception as _e_win:  # POSIX — Unicode 변형으로 str I/O 통일
     try:
         from ptyprocess import PtyProcessUnicode as PtyProcess  # type: ignore
         _BACKEND = "ptyprocess"
-    except Exception:  # pragma: no cover
+    except Exception as _e_posix:  # pragma: no cover
         PtyProcess = None  # type: ignore
         _BACKEND = None
+        _IMPORT_ERROR = (
+            f"winpty: {_e_win!r} / ptyprocess: {_e_posix!r}"
+        )
 
 
 def backend_available() -> bool:
     return PtyProcess is not None
+
+
+def diag() -> dict:
+    """진단용: PTY 백엔드/설치 상태."""
+    from .runner import agy_path
+    return {
+        "platform": sys.platform,
+        "pty_backend": _BACKEND,
+        "pty_available": PtyProcess is not None,
+        "pty_import_error": _IMPORT_ERROR,
+        "shell": default_shell(),
+        "agy_path": agy_path(),
+        "agy_installed": agy_path() is not None,
+    }
 
 
 def default_shell() -> List[str]:
