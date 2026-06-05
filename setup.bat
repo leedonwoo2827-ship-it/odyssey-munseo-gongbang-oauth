@@ -1,5 +1,11 @@
 @echo off
 REM ASCII-only on purpose: Korean text in a .bat breaks on CP949 consoles.
+REM Keep the window open even when double-clicked, so output/errors stay visible.
+if not defined _ODY_KEEPOPEN (
+  set "_ODY_KEEPOPEN=1"
+  cmd /k ""%~f0""
+  exit /b
+)
 cd /d "%~dp0"
 set "LOG=%~dp0setup_log.txt"
 echo setup start > "%LOG%"
