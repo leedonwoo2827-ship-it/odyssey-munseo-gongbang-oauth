@@ -1,5 +1,8 @@
 fastapi
 uvicorn
+# WebSocket support for uvicorn (embedded /terminal page). Without it the WS
+# handshake fails with code 1006 and the in-page terminal can't connect.
+websockets
 python-multipart
 python-dotenv
 httpx
