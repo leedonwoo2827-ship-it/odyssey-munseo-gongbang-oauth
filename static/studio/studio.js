@@ -113,13 +113,14 @@ async function loadModelOptions() {
   const msg = $("#studio-model-msg");
   const btn = $("#apply-model");
   if (!sel) return;
-  // 목록은 매번 새로 채움(중복 방지 위해 기본 옵션만 남기고 비움)
-  sel.querySelectorAll("option:not([value=''])").forEach((o) => o.remove());
   try {
-    const r = await fetch(`/api/llm/models`);
+    const r = await fetch(`/api/llm/models`, { cache: "no-store" });
     const d = await r.json();
-    const def = sel.querySelector("option[value='']");
-    if (def) def.textContent = d.provider === "codex" ? "기본값 (codex 자동 선택)" : "기본값 (agy 자동 선택)";
+    // 드롭다운을 통째로 재구성 — 다른 공급자 모델이 섞여 남지 않게(선택 공급자 모델만).
+    const defLabel = d.provider === "codex" ? "기본값 (codex 자동 선택)" : "기본값 (agy 자동 선택)";
+    sel.innerHTML = "";
+    const def = document.createElement("option");
+    def.value = ""; def.textContent = defLabel; sel.appendChild(def);
     (d.models || []).forEach((m) => {
       const o = document.createElement("option");
       o.value = m; o.textContent = m; sel.appendChild(o);
