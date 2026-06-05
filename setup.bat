@@ -113,12 +113,12 @@ echo.
 echo ============================================================
 echo   SETUP COMPLETE.  Next:  double-click run.bat
 echo.
-echo   Sign in once with Google:
-echo     1) On the login page, click the "open agy terminal" button
-echo        (a black terminal window opens). In it, type:  agy
-echo        and sign in with Google in the browser.
-echo     2) Back on the page, click the Google login button.
-echo   No API key needed (uses your Google account quota).
+echo   Sign in once (pick a provider on screen: Gemini or OpenAI):
+echo     - Gemini : open the login terminal and type   agy          (Google sign-in)
+echo     - OpenAI : open the login terminal and run     codex login  (ChatGPT sign-in)
+echo   Tip: on the page, use the provider toggle + [Login] button - it opens
+echo        the right terminal for you. Then click [Refresh status].
+echo   No API key needed (uses your account quota).
 echo ============================================================
 
 :end

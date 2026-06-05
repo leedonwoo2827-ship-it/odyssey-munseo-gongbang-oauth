@@ -31,8 +31,9 @@ codex login
 
 ## 동작 확인
 ```bash
-codex login status   # 로그인돼 있으면 exit 0
-codex exec "say OK"  # 최종 답이 stdout 으로 출력
+codex login status        # 로그인돼 있으면 exit 0
+codex debug models        # 제공 모델 목록(JSON): gpt-5.5 / gpt-5.4 / gpt-5.4-mini
+codex exec "say OK" -m gpt-5.5   # 최종 답이 stdout 으로 출력
 ```
 
 ## 계정 전환 / 로그아웃
@@ -43,5 +44,5 @@ codex logout   # 자격증명 삭제 → 다시 codex login 으로 다른 계정
 ## 앱과의 연동(요약)
 - 로그인 판정: `codex login status` exit 코드.
 - 문서 생성: `codex exec "<프롬프트>" -m <model> -s read-only -a never` → stdout 캡처.
-- 모델 목록: `codex debug models`. 모델 선택은 앱 [⚙ 연결 상태] 드롭다운.
-- 대량 사용은 **ChatGPT Plus/Pro** 등 상위 구독 권장(등급별 할당량 상이).
+- 모델 목록: `codex debug models`(JSON). 앱이 파싱해 [⚙ 연결 상태] 드롭다운에 표시(현재 gpt-5.5/5.4/5.4-mini).
+- 대량 사용은 **ChatGPT Plus/Pro** 등 상위 구독 권장(등급별 할당량 상이). 비용 비교 → [비용표](../antigravity/비용_할당량_비교.md)
