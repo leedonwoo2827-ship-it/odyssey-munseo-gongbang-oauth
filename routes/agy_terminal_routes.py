@@ -120,6 +120,23 @@ def setup_agy_terminal_routes() -> APIRouter:
                         if removed else "이미 로그아웃 상태입니다."),
         }
 
+    @router.get("/api/agy/models")
+    async def agy_models():
+        """`agy models` 목록 + 현재 선택된 모델. ''(빈값)=agy 기본 모델."""
+        from services.agy import runner
+        models = await asyncio.to_thread(runner.list_models)
+        return {"models": models, "selected": runner.get_model()}
+
+    @router.post("/api/agy/model")
+    async def agy_set_model(request: Request):
+        """화면에서 고른 모델 저장(빈 문자열이면 agy 기본). 로컬 전용."""
+        if not _client_is_loopback(request):
+            return JSONResponse(status_code=403, content={"ok": False, "message": "로컬에서만 가능합니다."})
+        from services.agy import runner
+        body = await request.json()
+        runner.set_model((body.get("model") or "").strip())
+        return {"ok": True, "selected": runner.get_model()}
+
     @router.get("/api/agy/terminal/diag")
     async def terminal_diag(request: Request):
         """진단: PTY 백엔드/agy 설치 상태 + 호출자 호스트."""

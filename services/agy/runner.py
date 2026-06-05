@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # ANSI 이스케이프(색상/커서 등) 제거용
@@ -32,9 +33,36 @@ AGY_BIN = os.environ.get("AGY_BIN", "agy")
 # agy --print 단일 호출 타임아웃(초).
 AGY_TIMEOUT = int(os.environ.get("AGY_PRINT_TIMEOUT", "300"))
 DEFAULT_MODEL = os.environ.get("STUDIO_DEFAULT_MODEL", "gemini-3-pro")
-# agy 에 --model 로 넘길 모델명. 비우면 --model 을 아예 안 넘긴다(agy 기본 모델 사용).
-# (우리 레시피의 모델명과 agy 의 모델 ID가 다를 수 있어, 기본은 agy 에 맡긴다.)
+# agy 에 --model 로 넘길 모델명(환경변수 기본값). 비우면 화면에서 고른 값을 사용.
 AGY_MODEL = os.environ.get("AGY_MODEL", "").strip()
+
+# 화면에서 고른 모델을 저장하는 파일. agy `models` 가 출력하는 이름을 그대로 저장한다
+# (예: "Gemini 3.1 Pro (High)"). 빈 값이면 agy 기본 모델 사용.
+_MODEL_FILE = Path(__file__).resolve().parents[2] / "data" / "agy_model.json"
+
+
+def get_model() -> str:
+    """현재 사용할 모델명. 우선순위: 화면 저장값 > 환경변수 AGY_MODEL > '' (agy 기본)."""
+    try:
+        if _MODEL_FILE.is_file():
+            m = json.loads(_MODEL_FILE.read_text(encoding="utf-8")).get("model", "")
+            if isinstance(m, str) and m.strip():
+                return m.strip()
+    except Exception:
+        pass
+    return AGY_MODEL
+
+
+def set_model(name: str) -> None:
+    """화면에서 고른 모델 저장(빈 값이면 agy 기본 모델)."""
+    try:
+        _MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _MODEL_FILE.write_text(
+            json.dumps({"model": (name or "").strip()}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 # agy 가 PATH 에 없을 때 확인할 기본 설치 위치
 _FALLBACK_AGY_PATHS = [
@@ -179,6 +207,86 @@ def _text_from_obj(obj: Any) -> str:
     return ""
 
 
+def _pty_capture(argv: List[str], timeout: int = 120, idle_break: int = 30) -> Optional[str]:
+    """agy 를 PTY 로 실행해 콘솔 출력을 캡처(ANSI 제거). PTY 백엔드 없으면 None.
+
+    agy 는 응답을 stdout 파이프가 아니라 '콘솔'에 직접 쓰므로 일반 subprocess 로는
+    빈 문자열만 잡힌다 → PTY(가상 콘솔)로 실행해야 캡처된다.
+    """
+    try:
+        from .pty_terminal import PtyProcess, backend_available
+    except Exception:
+        return None
+    if not backend_available() or PtyProcess is None:
+        return None
+    try:
+        proc = PtyProcess.spawn(argv, dimensions=(60, 220))
+    except Exception:
+        return None
+    chunks: List[str] = []
+    deadline = time.monotonic() + timeout
+    last_data = time.monotonic()
+    try:
+        while True:
+            if time.monotonic() > deadline:
+                break
+            try:
+                data = proc.read(65536)
+            except EOFError:
+                break
+            except Exception:
+                break
+            if data:
+                chunks.append(data)
+                last_data = time.monotonic()
+            else:
+                if not proc.isalive():
+                    break
+                if chunks and (time.monotonic() - last_data) > idle_break:
+                    break
+                time.sleep(0.05)
+    finally:
+        try:
+            if proc.isalive():
+                proc.terminate(force=True)
+        except Exception:
+            pass
+    return _strip_ansi("".join(chunks))
+
+
+_MODELS_CACHE: Optional[List[str]] = None
+
+
+def list_models(force: bool = False) -> List[str]:
+    """`agy models` 출력에서 모델 이름 목록 추출(프로세스 수명 동안 캐시)."""
+    global _MODELS_CACHE
+    if _MODELS_CACHE is not None and not force:
+        return _MODELS_CACHE
+    path = agy_path()
+    if not path:
+        return []
+    out = _pty_capture([path, "models"], timeout=30, idle_break=4) or ""
+    if not out.strip():
+        try:
+            p = subprocess.run([path, "models"], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=30)
+            out = _strip_ansi((p.stdout or "") + "\n" + (p.stderr or ""))
+        except Exception:
+            out = ""
+    models: List[str] = []
+    for line in out.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        # 모델 라인만(공급자 접두) — 프롬프트/경로/배너 줄 제외
+        if any(s.startswith(k) for k in ("Gemini", "Claude", "GPT", "gemini", "claude", "gpt")):
+            if s not in models:
+                models.append(s)
+    if models:
+        _MODELS_CACHE = models
+    return models
+
+
 class AgyClient:
     """ubion_llm.UbionClient 드롭인 대체.
 
@@ -216,7 +324,8 @@ class AgyClient:
         """
         # NOTE: agy(>=1.0.5)에는 --output-format 옵션이 없다. --print 는 평문으로 응답한다.
         # 유효 옵션: --print/-p, --model, --dangerously-skip-permissions, --print-timeout.
-        model_opt = (["--model", AGY_MODEL] if AGY_MODEL else [])
+        sel = get_model()
+        model_opt = (["--model", sel] if sel else [])
         variants: List[List[str]] = []
         # 1) skip-permissions + (model) — 비대화식에서 권한 프롬프트로 멈추지 않게
         variants.append([path, "--print", prompt, "--dangerously-skip-permissions", *model_opt])
@@ -237,54 +346,7 @@ class AgyClient:
         return uniq
 
     def _run_via_pty(self, argv: List[str]) -> Optional[str]:
-        """agy 를 PTY 로 실행해 콘솔 출력을 캡처한다.
-
-        중요: agy 는 응답을 stdout 파이프가 아니라 '콘솔'에 직접 쓴다. 그래서 일반
-        subprocess(capture_output) 로는 빈 문자열만 잡힌다. PTY(가상 콘솔)로 실행하면
-        그 출력을 캡처할 수 있다. pywinpty/ptyprocess 가 없으면 None(→ subprocess 폴백).
-        """
-        try:
-            from .pty_terminal import PtyProcess, backend_available
-        except Exception:
-            return None
-        if not backend_available() or PtyProcess is None:
-            return None
-        try:
-            proc = PtyProcess.spawn(argv, dimensions=(60, 220))
-        except Exception:
-            return None
-
-        chunks: List[str] = []
-        deadline = time.monotonic() + self.timeout
-        last_data = time.monotonic()
-        try:
-            while True:
-                if time.monotonic() > deadline:
-                    break
-                try:
-                    data = proc.read(65536)
-                except EOFError:
-                    break
-                except Exception:
-                    break
-                if data:
-                    chunks.append(data)
-                    last_data = time.monotonic()
-                else:
-                    if not proc.isalive():
-                        break
-                    # 출력이 멈춘 지 충분히 지났고 이미 받은 게 있으면 완료로 간주
-                    # (생성 중 잠깐 멈춰도 잘리지 않게 넉넉히 — 주 종료신호는 프로세스 exit)
-                    if chunks and (time.monotonic() - last_data) > 30:
-                        break
-                    time.sleep(0.05)
-        finally:
-            try:
-                if proc.isalive():
-                    proc.terminate(force=True)
-            except Exception:
-                pass
-        return _strip_ansi("".join(chunks))
+        return _pty_capture(argv, timeout=self.timeout, idle_break=30)
 
     def _run(self, prompt: str, model: str) -> str:
         path = agy_path() if self.bin == AGY_BIN else (
@@ -296,7 +358,8 @@ class AgyClient:
             )
 
         # 1) PTY 캡처 우선 (agy 는 콘솔에 직접 출력하므로 파이프로는 안 잡힘)
-        model_opt = (["--model", AGY_MODEL] if AGY_MODEL else [])
+        sel = get_model()
+        model_opt = (["--model", sel] if sel else [])
         argv = [path, "--print", prompt, "--dangerously-skip-permissions", *model_opt]
         out = self._run_via_pty(argv)
         if out is not None:

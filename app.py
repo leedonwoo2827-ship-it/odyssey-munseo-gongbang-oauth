@@ -181,6 +181,8 @@ if AUTH_ENABLED:
         # OS 터미널 창을 띄워 agy 로그인 — 로그인 전에 호출되어야 하므로 예외(loopback 자체제한).
         "/api/agy/open-terminal",
         "/api/agy/logout",
+        "/api/agy/models",
+        "/api/agy/model",
     }
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded

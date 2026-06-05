@@ -77,13 +77,43 @@ async function openSettings(firstTime) {
       st.textContent = "✗ agy 에 Google 로그인이 필요합니다. 아래 '터미널 열기' → agy 로그인.";
     } else {
       st.className = "modal-status ok";
-      st.textContent = `✓ 연결됨 — 계정: ${s.email || ""} · 기본모델: ${s.default_model || ""}`;
+      st.textContent = `✓ 연결됨 — 계정: ${s.email || ""}`;
     }
   } catch (e) {
     st.className = "modal-status bad"; st.textContent = "✗ 상태 확인 실패: " + e;
   }
+  loadModelOptions();
   // 우상단 칩도 같이 갱신
   checkHealth();
+}
+
+// agy 모델 드롭다운 채우기 + 선택 저장 (studio 연결상태 모달)
+async function loadModelOptions() {
+  const sel = $("#studio-model");
+  const msg = $("#studio-model-msg");
+  if (!sel || sel._loaded) { return; }
+  try {
+    const r = await fetch(`/api/agy/models`);
+    const d = await r.json();
+    (d.models || []).forEach((m) => {
+      const o = document.createElement("option");
+      o.value = m; o.textContent = m; sel.appendChild(o);
+    });
+    sel.value = d.selected || "";
+    sel._loaded = true;
+    if (msg) msg.textContent = (d.selected ? "" : "(현재: agy 기본)");
+    sel.addEventListener("change", async () => {
+      if (msg) msg.textContent = "저장 중…";
+      try {
+        const rr = await fetch(`/api/agy/model`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: sel.value }),
+        });
+        const dd = await rr.json();
+        if (msg) msg.textContent = (rr.ok && dd.ok) ? "✓ 적용됨" : "저장 실패";
+      } catch (e) { if (msg) msg.textContent = "저장 실패"; }
+    });
+  } catch (e) { if (msg) msg.textContent = "모델 목록 로드 실패"; }
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
