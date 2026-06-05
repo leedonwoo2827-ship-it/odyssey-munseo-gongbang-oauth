@@ -1,0 +1,8 @@
+setup start 
+step:python-ok 
+step:venv-ok 
+step:pip-ok 
+step:pywinpty-done 
+step:agy-done 
+step:setup-py-done 
+setup end 
