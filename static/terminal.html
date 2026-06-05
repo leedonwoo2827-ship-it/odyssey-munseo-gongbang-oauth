@@ -3,140 +3,166 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>agy 터미널 — Antigravity CLI</title>
+  <title>agy 로그인 관리 — Antigravity CLI</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css" />
   <style>
     :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
     body { margin: 0; background: #0b0d12; color: #d6dae1; font-family: "Segoe UI", system-ui, sans-serif; }
-    header { padding: 10px 16px; border-bottom: 1px solid #222836; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+    header { padding: 12px 18px; border-bottom: 1px solid #222836; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 700; }
     header .hint { font-size: 12px; color: #8a93a6; }
-    #status { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #1b2231; color: #9aa4b8; }
-    #status.ok { background: #14351f; color: #6ee7a0; }
-    #status.bad { background: #3a1d22; color: #f0a0a8; }
-    .bar { padding: 8px 16px; border-bottom: 1px solid #222836; display: flex; gap: 8px; flex-wrap: wrap; }
-    .bar button { background: #1b2231; color: #cdd4e0; border: 1px solid #2a3142; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
-    .bar button:hover { background: #232c3e; }
-    #term { padding: 8px; height: calc(100vh - 110px); }
+    .card { margin: 18px; padding: 22px 24px; background: #131a28; border: 1px solid #232c40; border-radius: 14px; max-width: 780px; }
+    .card h2 { margin: 0 0 2px; font-size: 14px; color: #939db3; font-weight: 600; }
+    .acct { font-size: 17px; margin: 8px 0 2px; }
+    .acct .email { font-weight: 700; color: #8ab4ff; }
+    .badge { display: inline-block; font-size: 12px; padding: 2px 9px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+    .badge.ok { background: #14351f; color: #6ee7a0; }
+    .badge.no { background: #3a1d22; color: #f0a0a8; }
+    .btns { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+    button { font-size: 14px; border-radius: 9px; padding: 10px 16px; cursor: pointer; border: 1px solid #2a3142; background: #1b2231; color: #cdd4e0; }
+    button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 700; }
+    button.danger { border-color: #5b2b33; }
+    button:hover { filter: brightness(1.12); }
+    .msg { margin-top: 14px; font-size: 13.5px; min-height: 18px; }
+    .msg.ok { color: #6ee7a0; } .msg.bad { color: #f0a0a8; } .msg.info { color: #9aa4b8; }
+    .steps { margin-top: 16px; padding-top: 14px; border-top: 1px solid #232c40; font-size: 13px; color: #9aa4b8; line-height: 1.85; }
+    .steps b { color: #cdd4e0; }
+    details { margin: 0 18px 22px; max-width: 780px; }
+    summary { cursor: pointer; color: #8a93a6; font-size: 13px; padding: 8px 0; }
+    .bar { padding: 8px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .bar button { padding: 6px 10px; font-size: 12.5px; }
+    #term { padding: 8px; height: 340px; background: #0b0d12; border: 1px solid #222836; border-radius: 8px; }
+    code { background: #0d1320; padding: 1px 5px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🖥️ agy 터미널</h1>
-    <span class="hint">여기서 일반 터미널처럼 <code>agy</code> 명령을 입력하세요 — 로그인·계정전환·모델변경·사용량조회.</span>
-    <span id="status">연결 중…</span>
+    <h1>🔑 agy 로그인 관리</h1>
+    <span class="hint">Google 계정으로 로그인하면 그 계정 할당량으로 Gemini를 사용합니다. (API 키 불필요)</span>
   </header>
-  <div class="bar">
-    <button data-cmd="agy&#10;">agy 로그인</button>
-    <button id="btn-logout">로그아웃(계정전환)</button>
-    <button data-cmd="agy models&#10;">모델 목록</button>
-    <button data-cmd="agy --help&#10;">명령 목록(help)</button>
-    <button id="btn-clear">화면 지우기</button>
-    <button id="btn-oscmd" title="브라우저 내장 터미널이 안 될 때 실제 cmd 창을 띄웁니다">🪟 실제 cmd 창 열기</button>
+
+  <div class="card">
+    <h2>현재 계정</h2>
+    <div class="acct" id="acct">상태 확인 중…</div>
+    <div class="btns" id="btns"></div>
+    <div class="msg info" id="msg"></div>
+    <div class="steps">
+      <b>① 로그인</b> — <b>[Google 로그인]</b> 클릭 → 새로 뜬 검은 터미널 창에서 안내(테마 → 약관 → 폴더 신뢰)를
+      <b>Enter</b>로 넘기면 브라우저가 열립니다 → <b>구글 계정 선택</b>.<br>
+      <b>② 확인</b> — 로그인 끝나면 여기서 <b>[상태 새로고침]</b> → 위에 계정 이메일이 표시됩니다.<br>
+      <b>③ 계정 바꾸기</b> — <b>[로그아웃]</b> 누른 뒤 다시 <b>[Google 로그인]</b> 으로 다른 계정 로그인.<br>
+      <span style="color:#6f7890">대량 문서 생성에는 Google AI Pro/Ultra 계정 로그인을 권장합니다(무료는 하루 ~20건).</span>
+    </div>
   </div>
-  <div id="term"></div>
+
+  <details>
+    <summary>고급 — 터미널에 직접 명령 입력 (선택)</summary>
+    <div class="bar">
+      <button data-cmd="agy&#10;">agy 실행</button>
+      <button data-cmd="agy models&#10;">모델 목록</button>
+      <button data-cmd="agy --help&#10;">명령 목록(help)</button>
+      <button id="btn-clear">화면 지우기</button>
+      <button id="btn-oscmd">🪟 실제 cmd 창 열기</button>
+      <span id="wsstatus" style="font-size:12px;color:#8a93a6"></span>
+    </div>
+    <div id="term"></div>
+  </details>
 
   <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
   <script nonce="{{CSP_NONCE}}">
     (function () {
-      const statusEl = document.getElementById('status');
-      const term = new window.Terminal({
-        fontFamily: 'Consolas, "Courier New", monospace',
-        fontSize: 13,
-        cursorBlink: true,
-        theme: { background: '#0b0d12', foreground: '#d6dae1' },
-      });
-      const fit = new window.FitAddon.FitAddon();
-      term.loadAddon(fit);
-      term.open(document.getElementById('term'));
-      fit.fit();
+      const acctEl = document.getElementById('acct');
+      const btnsEl = document.getElementById('btns');
+      const msgEl = document.getElementById('msg');
+      function setMsg(t, c) { msgEl.textContent = t; msgEl.className = 'msg ' + (c || 'info'); }
 
-      function setStatus(text, cls) {
-        statusEl.textContent = text;
-        statusEl.className = cls || '';
-      }
-
-      let ws = null;
-      function sendResize() {
-        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols }));
-      }
-
-      function connect() {
-        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-        ws = new WebSocket(`${proto}://${location.host}/api/agy/terminal/ws`);
-        ws.onopen = () => { setStatus('연결됨', 'ok'); sendResize(); };
-        ws.onclose = (ev) => setStatus(`연결 종료 (code ${ev.code}${ev.reason ? ' · ' + ev.reason : ''}) — 새로고침`, 'bad');
-        ws.onerror = () => setStatus('연결 오류', 'bad');
-        ws.onmessage = (ev) => {
-          let msg;
-          try { msg = JSON.parse(ev.data); } catch { term.write(ev.data); return; }
-          if (msg.type === 'out' || msg.type === 'error') term.write(msg.data);
-          else if (msg.type === 'exit') { term.write('\r\n[세션 종료]\r\n'); setStatus('세션 종료', 'bad'); }
-        };
-        term.onData((d) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: d })); });
-      }
-
-      // 먼저 진단을 받아 화면에 표시 → 원인을 즉시 알 수 있게.
-      (async () => {
+      async function refresh() {
         try {
-          const r = await fetch('/api/agy/terminal/diag');
-          const d = await r.json();
-          if (!d.loopback_ok) {
-            term.writeln('\x1b[31m이 터미널은 로컬(127.0.0.1)에서만 동작합니다. 현재 host=' + d.client_host + '\x1b[0m');
+          const r = await fetch('/api/auth/google/status');
+          const s = await r.json();
+          if (!s.agy_installed) {
+            acctEl.innerHTML = '<span class="badge no">agy 미설치</span>';
+            setMsg('Antigravity CLI(agy)가 설치되지 않았습니다. 설치 후 새로고침하세요.', 'bad');
+            renderBtns(false, false); return;
           }
-          if (!d.pty_available) {
-            term.writeln('\x1b[33m[PTY 백엔드 없음] 내장 터미널을 쓰려면 설치가 필요합니다:\x1b[0m');
-            term.writeln('  Windows : pip install pywinpty');
-            term.writeln('  macOS/Linux : pip install ptyprocess');
-            term.writeln('  (venv 사용 시: venv\\Scripts\\python -m pip install pywinpty)');
-            if (d.pty_import_error) term.writeln('  사유: ' + d.pty_import_error);
-            term.writeln('');
-            term.writeln('\x1b[36m대안: 위의 [실제 cmd 창 열기] 버튼을 누르면 진짜 cmd 창이 떠서 거기서 agy 로그인할 수 있습니다.\x1b[0m');
-            setStatus('PTY 미설치 — 위 안내 참고', 'bad');
-            if (!d.agy_installed) term.writeln('\x1b[33m참고: agy 도 아직 설치되지 않았습니다 (docs/antigravity/install.md).\x1b[0m');
-            return; // WS 연결 시도하지 않음
+          if (s.agy_authenticated) {
+            acctEl.innerHTML = '<span class="email">' + (s.agy_email || '') + '</span> <span class="badge ok">로그인됨</span>';
+          } else {
+            acctEl.innerHTML = '<span class="badge no">로그인 안 됨</span>';
           }
-          if (!d.agy_installed) {
-            term.writeln('\x1b[33m참고: agy 가 설치되지 않았습니다. 셸에서 설치 후 `agy` 로 로그인하세요 (docs/antigravity/install.md).\x1b[0m');
-          }
-        } catch (e) {
-          term.writeln('진단 호출 실패: ' + e);
+          renderBtns(true, !!s.agy_authenticated);
+        } catch (e) { setMsg('상태 확인 실패: ' + e, 'bad'); }
+      }
+
+      function renderBtns(installed, loggedIn) {
+        btnsEl.innerHTML = '';
+        const login = document.createElement('button');
+        login.className = 'primary';
+        login.textContent = loggedIn ? '🔑 다시 로그인 (다른 계정)' : '🔑 Google 로그인';
+        login.onclick = openLogin;
+        btnsEl.appendChild(login);
+        if (loggedIn) {
+          const out = document.createElement('button');
+          out.className = 'danger';
+          out.textContent = '🔁 로그아웃';
+          out.onclick = doLogout;
+          btnsEl.appendChild(out);
         }
-        connect();
-      })();
+        const ref = document.createElement('button');
+        ref.textContent = '↻ 상태 새로고침';
+        ref.onclick = refresh;
+        btnsEl.appendChild(ref);
+      }
 
-      window.addEventListener('resize', () => { fit.fit(); sendResize(); });
-
-      document.querySelectorAll('.bar button[data-cmd]').forEach((b) => {
-        b.addEventListener('click', () => {
-          const cmd = b.getAttribute('data-cmd');
-          if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: cmd }));
-          term.focus();
-        });
-      });
-      document.getElementById('btn-clear').addEventListener('click', () => term.clear());
-
-      // 로그아웃(계정전환): agy 자격증명 삭제 → 이후 [agy 로그인]으로 다른 계정 로그인
-      document.getElementById('btn-logout').addEventListener('click', async () => {
-        try {
-          const r = await fetch('/api/agy/logout', { method: 'POST' });
-          const d = await r.json().catch(() => ({}));
-          term.writeln('\r\n\x1b[33m' + (d.message || '로그아웃 처리됨') + '\x1b[0m');
-        } catch (e) { term.writeln('\r\n\x1b[31m로그아웃 실패: ' + e + '\x1b[0m'); }
-      });
-
-      // 폴백: 브라우저 내장 터미널 대신 실제 cmd 창을 띄운다.
-      document.getElementById('btn-oscmd').addEventListener('click', async () => {
+      async function openLogin() {
+        setMsg('터미널 창을 여는 중…', 'info');
         try {
           const r = await fetch('/api/agy/open-terminal', { method: 'POST' });
           const d = await r.json().catch(() => ({}));
-          if (r.ok && d.ok) term.writeln('\r\n\x1b[32m실제 cmd 창을 열었습니다. 그 창에서 agy 로 로그인하세요.\x1b[0m');
-          else term.writeln('\r\n\x1b[31m' + (d.message || 'cmd 창을 열지 못했습니다.') + '\x1b[0m');
-        } catch (e) { term.writeln('\r\n\x1b[31mcmd 창 열기 실패: ' + e + '\x1b[0m'); }
-      });
+          if (r.ok && d.ok) setMsg('✅ 새 터미널 창에서 안내를 Enter로 넘기고 구글 로그인하세요. 끝나면 [상태 새로고침].', 'ok');
+          else setMsg((d.message || '터미널을 열지 못했습니다.') + ' 아래 고급 → [실제 cmd 창 열기]를 써보세요.', 'bad');
+        } catch (e) { setMsg('터미널 열기 실패: ' + e, 'bad'); }
+      }
 
-      term.focus();
+      async function doLogout() {
+        setMsg('로그아웃 중…', 'info');
+        try {
+          const r = await fetch('/api/agy/logout', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          setMsg((d.message || '로그아웃되었습니다.'), 'ok');
+          setTimeout(refresh, 400);
+        } catch (e) { setMsg('로그아웃 실패: ' + e, 'bad'); }
+      }
+
+      refresh();
+      window.addEventListener('focus', refresh);
+
+      // ── 고급: 내장 터미널(펼칠 때만 연결) ──────────────────────────────
+      const wsstatus = document.getElementById('wsstatus');
+      let term = null, fit = null, ws = null, started = false;
+      function startTerm() {
+        if (started) return; started = true;
+        term = new window.Terminal({ fontFamily: 'Consolas, monospace', fontSize: 13, cursorBlink: true, theme: { background: '#0b0d12', foreground: '#d6dae1' } });
+        fit = new window.FitAddon.FitAddon(); term.loadAddon(fit);
+        term.open(document.getElementById('term')); fit.fit();
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws = new WebSocket(`${proto}://${location.host}/api/agy/terminal/ws`);
+        ws.onopen = () => { wsstatus.textContent = '연결됨'; sendResize(); };
+        ws.onclose = (e) => { wsstatus.textContent = '연결 종료(' + e.code + ')'; };
+        ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { term.write(ev.data); return; } if (m.type === 'out' || m.type === 'error') term.write(m.data); else if (m.type === 'exit') term.write('\r\n[세션 종료]\r\n'); };
+        term.onData((d) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: d })); });
+      }
+      function sendResize() { if (ws && ws.readyState === 1 && term) ws.send(JSON.stringify({ type: 'resize', rows: term.rows, cols: term.cols })); }
+      window.addEventListener('resize', () => { if (fit) { fit.fit(); sendResize(); } });
+      document.querySelector('details').addEventListener('toggle', function () { if (this.open) startTerm(); });
+      document.querySelectorAll('.bar button[data-cmd]').forEach((b) => b.addEventListener('click', () => { const c = b.getAttribute('data-cmd'); if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: c })); }));
+      document.getElementById('btn-clear').addEventListener('click', () => term && term.clear());
+      document.getElementById('btn-oscmd').addEventListener('click', async () => {
+        try { const r = await fetch('/api/agy/open-terminal', { method: 'POST' }); const d = await r.json().catch(() => ({})); setMsg(d.ok ? '실제 cmd 창을 열었습니다.' : (d.message || '실패'), d.ok ? 'ok' : 'bad'); }
+        catch (e) { setMsg('실패: ' + e, 'bad'); }
+      });
     })();
   </script>
 </body>
