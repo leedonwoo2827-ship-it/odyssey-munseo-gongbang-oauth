@@ -11,7 +11,7 @@ beautifulsoup4
 charset-normalizer
 numpy
 # Vector store + local embeddings for RAG, semantic memory, and tool
-# selection. Used on core agent paths, so installed by default — the app
+# selection. Used on core agent paths, so installed by default - the app
 # still degrades to keyword fallback if they're ever missing.
 # chromadb-client is the lightweight HTTP client (talks to a standalone
 # ChromaDB service); fastembed runs local ONNX embeddings.
@@ -19,17 +19,12 @@ chromadb-client
 fastembed
 youtube-transcript-api
 # Markdown rendering for research reports (src/visual_report.py).
-# Imported at module-top so it's a hard core dep, not optional.
 markdown
 # Calendar .ics import/export (routes/calendar_routes.py).
 icalendar
-# Recurrence rule expansion for calendar events (routes/calendar_routes.py).
-# Imported directly as dateutil.rrule — make it explicit even though caldav
-# pulls it in transitively.
+# Recurrence rule expansion for calendar events.
 python-dateutil
-# CalDAV sync (src/caldav_sync.py). Handles PROPFIND discovery + REPORT
-# fetch across Radicale, Nextcloud, Apple, Fastmail; we'd be reinventing
-# the protocol without it.
+# CalDAV sync (src/caldav_sync.py).
 caldav
 cryptography
 bcrypt
@@ -39,20 +34,20 @@ qrcode[pil]
 croniter
 pytest
 pytest-asyncio
-# ── 문서 생산 스튜디오 (AIM N팀) ─────────────────────────────────
-# LLM 백엔드는 구글 공식 Antigravity CLI(`agy`) subprocess 호출 — API 키/SDK 불필요.
-# 웹 내장 터미널(agy 로그인/계정전환/모델/사용량) PTY 백엔드.
-# (설치 안 돼도 앱은 동작 — 이 경우 '터미널 열기'가 실제 OS cmd 창으로 자동 폴백)
+# --- Document Studio (AIM N-team) ---
+# LLM backend = official Antigravity CLI (agy) via subprocess. No API key / SDK.
+# Embedded-terminal PTY backend (agy login / switch account / model / usage).
+# If not installed, the app still works - "open terminal" falls back to a real cmd window.
 pywinpty; platform_system == "Windows"
 ptyprocess; platform_system != "Windows"
 requests
-# 레시피 카탈로그(YAML)
+# Recipe catalog (YAML)
 pyyaml
-# 입력/출력 문서 처리
-python-docx        # .docx 추출/생성
-python-pptx        # .pptx 추출/생성
-openpyxl           # .xlsx 추출/생성
-pdfplumber         # .pdf 추출(폴백: pypdf, 이미 코어에 포함)
-lxml               # .hwpx ZIP/XML 처리
-# HWPX 네이티브 생성(한컴 OLE) — Windows + 한컴 한글 설치 시에만 동작
+# Input/output document processing
+python-docx        # .docx extract/generate
+python-pptx        # .pptx extract/generate
+openpyxl           # .xlsx extract/generate
+pdfplumber         # .pdf extract (fallback: pypdf, already in core)
+lxml               # .hwpx ZIP/XML handling
+# Native HWPX generation (Hancom OLE) - only on Windows with Hancom Office installed
 pywin32; platform_system == "Windows"
