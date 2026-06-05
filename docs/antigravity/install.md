@@ -1,5 +1,8 @@
 # Antigravity CLI(`agy`) 설치 가이드 (Windows / macOS)
 
+> **`agy` 란?** 구글 공식 **Antigravity**(AI 에이전트 플랫폼, gemini-cli 후속) 의 **CLI 실행 명령어**다.
+> "Anti**g**ravit**y**" 를 줄인 커맨드명일 뿐, 글자별 약어가 아니다. (= "Antigravity CLI를 호출")
+
 이 앱은 LLM 호출을 구글 공식 **Antigravity CLI(`agy`)** 에 위임한다. API 키가 필요 없고,
 `agy` 에 Google 계정으로 한 번 로그인하면 그 계정의 할당량으로 Gemini 모델을 사용한다.
 
