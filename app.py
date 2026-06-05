@@ -184,7 +184,7 @@ if AUTH_ENABLED:
         "/api/agy/models",
         "/api/agy/model",
     }
-    AUTH_EXEMPT_PREFIXES = ["/static"]
+    AUTH_EXEMPT_PREFIXES = ["/static", "/api/llm", "/api/auth/cli"]
     # Dynamic paths whose own handler proves identity via a path-embedded
     # secret instead of the session/bearer auth. The route handler at
     # routes/task_routes.py validates the per-task `webhook_token` itself
@@ -736,9 +736,17 @@ app.include_router(setup_companion_routes())
 from routes.studio_routes import setup_studio_routes
 app.include_router(setup_studio_routes())
 
-# Google 로그인(agy 기반) — /api/auth/google/*
+# Google 로그인(agy 기반) — /api/auth/google/* (하위호환 유지)
 from routes.google_auth_routes import setup_google_auth_routes
 app.include_router(setup_google_auth_routes(auth_manager))
+
+# 공급자 무관 로그인 — /api/auth/cli/* (활성 공급자: Gemini/agy ↔ OpenAI/codex)
+from routes.auth_cli_routes import setup_auth_cli_routes
+app.include_router(setup_auth_cli_routes(auth_manager))
+
+# 공급자 무관 LLM 관리 — /api/llm/* (공급자 토글·모델·로그인터미널·로그아웃)
+from routes.llm_routes import setup_llm_routes
+app.include_router(setup_llm_routes())
 
 # agy 내장 터미널 (WebSocket) — /api/agy/terminal/ws
 from routes.agy_terminal_routes import setup_agy_terminal_routes

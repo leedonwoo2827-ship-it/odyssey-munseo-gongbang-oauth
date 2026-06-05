@@ -47,20 +47,23 @@
 <body>
   <div class="card">
     <h1>Odysseus 문서공방</h1>
-    <p class="sub">Google 계정으로 로그인하세요. (API 키 불필요)</p>
+    <p class="sub">계정으로 로그인하세요. (API 키 불필요)</p>
+
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button id="prov-agy" type="button" style="flex:1;padding:8px;border-radius:8px;border:1px solid #2a3142;background:#1b2231;color:#cdd4e0;cursor:pointer;">Gemini (Google)</button>
+      <button id="prov-codex" type="button" style="flex:1;padding:8px;border-radius:8px;border:1px solid #2a3142;background:#1b2231;color:#cdd4e0;cursor:pointer;">OpenAI (ChatGPT)</button>
+    </div>
 
     <button id="googleBtn" class="gbtn" disabled>
-      <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.3 0 24 0 14.6 0 6.4 5.4 2.5 13.3l7.9 6.1C12.2 13.7 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-17.4z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.9-6.1C.9 16.5 0 20.1 0 24s.9 7.5 2.5 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.6l-7.4-5.7c-2.1 1.4-4.8 2.2-8.1 2.2-6.4 0-11.8-4.2-13.6-9.9l-7.9 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
-      <span id="googleBtnText">Google로 로그인</span>
+      <span id="googleBtnText">로그인</span>
     </button>
 
     <div id="status" class="status info">상태 확인 중…</div>
 
     <div class="term">
-      처음이거나 계정을 바꾸려면 <strong>터미널</strong>에서 로그인하세요.<br>
-      <a class="linkbtn" href="/terminal" target="_blank" rel="noopener">🖥️ 터미널 열기</a>
-      <div style="margin-top:8px;">새 탭의 터미널에 <code>agy</code> 입력 → Google 로그인. 계정 전환은 터미널의 <b>[로그아웃]</b> 버튼.<br>
-      (브라우저 내장 터미널이 안 되면 자동으로 실제 cmd 창으로 열립니다.)</div>
+      위에서 <strong>공급자</strong>(Gemini/OpenAI)를 고른 뒤, 처음이거나 계정을 바꾸려면 <strong>터미널</strong>에서 로그인하세요.<br>
+      <a class="linkbtn" href="/terminal" target="_blank" rel="noopener">🖥️ 로그인 관리(터미널) 열기</a>
+      <div style="margin-top:8px;">터미널에서 <code>agy</code>(Gemini) 또는 <code>codex login</code>(OpenAI)으로 로그인 → 이 페이지에서 새로고침.</div>
     </div>
   </div>
 
@@ -72,20 +75,35 @@
 
       function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = 'status ' + (cls || 'info'); }
 
+      let LABEL = 'Gemini (Google)';
+      function syncProv(p) {
+        document.getElementById('prov-agy').style.outline = (p === 'agy') ? '2px solid #2563eb' : 'none';
+        document.getElementById('prov-codex').style.outline = (p === 'codex') ? '2px solid #2563eb' : 'none';
+      }
+      async function setProvider(name) {
+        try { await fetch('/api/llm/provider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: name }) }); } catch (e) {}
+        refresh();
+      }
+      document.getElementById('prov-agy').onclick = () => setProvider('agy');
+      document.getElementById('prov-codex').onclick = () => setProvider('codex');
+
       async function refresh() {
         try {
-          const r = await fetch('/api/auth/google/status');
+          const r = await fetch('/api/auth/cli/status');
           const s = await r.json();
+          LABEL = s.label || 'Gemini (Google)';
+          syncProv(s.provider || 'agy');
+          btnText.textContent = LABEL + '로 로그인';
           if (s.session_user) { location.href = '/studio'; return; }
-          if (!s.agy_installed) {
-            setStatus('Antigravity CLI(agy)가 설치되어 있지 않습니다. 아래 터미널을 열어 설치/로그인하세요.', 'bad');
+          if (!s.installed) {
+            setStatus(LABEL + ' CLI가 설치되어 있지 않습니다. 아래 터미널을 열어 설치/로그인하세요.', 'bad');
             btn.disabled = true; return;
           }
-          if (!s.agy_authenticated) {
-            setStatus('agy 에 Google 로그인이 필요합니다. 아래 터미널에서 로그인 후 새로고침하세요.', 'bad');
+          if (!s.authenticated) {
+            setStatus(LABEL + ' 로그인이 필요합니다. 아래 [터미널 열기]에서 로그인 후 새로고침하세요.', 'bad');
             btn.disabled = true; return;
           }
-          setStatus('agy 계정 감지됨: ' + (s.agy_email || '') + ' — 로그인할 수 있습니다.', 'ok');
+          setStatus('계정 감지됨: ' + (s.email || LABEL) + ' — 로그인할 수 있습니다.', 'ok');
           btn.disabled = false;
         } catch (e) {
           setStatus('상태 확인 실패: ' + e, 'bad');
@@ -95,14 +113,14 @@
       btn.addEventListener('click', async () => {
         btn.disabled = true; btnText.textContent = '로그인 중…';
         try {
-          const r = await fetch('/api/auth/google/login', { method: 'POST' });
+          const r = await fetch('/api/auth/cli/login', { method: 'POST' });
           const data = await r.json().catch(() => ({}));
           if (r.ok && data.ok) { location.href = '/studio'; return; }
           setStatus(data.message || data.detail || '로그인 실패', 'bad');
         } catch (e) {
           setStatus('로그인 오류: ' + e, 'bad');
         } finally {
-          btnText.textContent = 'Google로 로그인'; btn.disabled = false; refresh();
+          btn.disabled = false; refresh();
         }
       });
 

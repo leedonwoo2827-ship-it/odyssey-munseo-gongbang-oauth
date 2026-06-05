@@ -26,6 +26,10 @@ async function init() {
   $("#close-settings").addEventListener("click", closeSettings);
   $("#refresh-settings").addEventListener("click", () => openSettings(false));
   $("#open-terminal").addEventListener("click", openTerminal);
+  // 공급자 토글
+  const pa = $("#prov-agy"), pc = $("#prov-codex");
+  if (pa) pa.addEventListener("click", () => setProvider("agy"));
+  if (pc) pc.addEventListener("click", () => setProvider("codex"));
   // 산출물 목록 모달
   $("#open-outputs").addEventListener("click", openOutputs);
   $("#close-outputs").addEventListener("click", () => { $("#outputs-overlay").style.display = "none"; });
@@ -45,12 +49,12 @@ async function checkHealth() {
     const r = await fetch(`${API}/settings`);
     const s = await r.json();
     if (s.authenticated) {
-      chip.textContent = "● Gemini(agy) 연결됨";
+      chip.textContent = "● " + (s.label || "LLM") + " 연결됨";
       chip.className = "status ok";
       chip.title = s.email || "";
       return true;
     }
-    chip.textContent = s.installed ? "● 로그인 필요 — 클릭" : "● agy 미설치 — 클릭";
+    chip.textContent = s.installed ? "● 로그인 필요 — 클릭" : "● CLI 미설치 — 클릭";
     chip.className = "status bad";
     chip.title = "";
     return false;
@@ -61,29 +65,45 @@ async function checkHealth() {
   }
 }
 
-// ── 연결 상태 모달 (agy) ─────────────────────────────────
+// 공급자 전환
+async function setProvider(name) {
+  try {
+    await fetch(`/api/llm/provider`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: name }),
+    });
+  } catch (e) { /* 무시 */ }
+  openSettings(false);
+}
+
+// ── 연결 상태 모달 (공급자 토글) ─────────────────────────────────
 async function openSettings(firstTime) {
   const st = $("#set-status");
   st.className = "modal-status"; st.textContent = "상태 확인 중…";
   $("#settings-overlay").style.display = "flex";
+  let label = "LLM";
   try {
     const r = await fetch(`${API}/settings`);
     const s = await r.json();
+    label = s.label || "LLM";
+    // 공급자 토글 버튼 활성 표시
+    const pa = $("#prov-agy"), pc = $("#prov-codex");
+    if (pa) pa.style.outline = (s.provider === "agy") ? "2px solid #6366f1" : "none";
+    if (pc) pc.style.outline = (s.provider === "codex") ? "2px solid #6366f1" : "none";
     if (!s.installed) {
       st.className = "modal-status bad";
-      st.textContent = "✗ Antigravity CLI(agy)가 설치되어 있지 않습니다. 아래 터미널에서 설치/로그인하세요.";
+      st.textContent = `✗ ${label} CLI가 설치되어 있지 않습니다. [로그인 관리 열기]에서 설치/로그인하세요.`;
     } else if (!s.authenticated) {
       st.className = "modal-status bad";
-      st.textContent = "✗ agy 에 Google 로그인이 필요합니다. 아래 '터미널 열기' → agy 로그인.";
+      st.textContent = `✗ ${label} 로그인이 필요합니다. [로그인 관리 열기] → 로그인.`;
     } else {
       st.className = "modal-status ok";
-      st.textContent = `✓ 연결됨 — 계정: ${s.email || ""}`;
+      st.textContent = `✓ 연결됨 (${label}) — 계정: ${s.email || ""}`;
     }
   } catch (e) {
     st.className = "modal-status bad"; st.textContent = "✗ 상태 확인 실패: " + e;
   }
   loadModelOptions();
-  // 우상단 칩도 같이 갱신
   checkHealth();
 }
 
@@ -96,14 +116,14 @@ async function loadModelOptions() {
   // 목록은 매번 새로 채움(중복 방지 위해 기본 옵션만 남기고 비움)
   sel.querySelectorAll("option:not([value=''])").forEach((o) => o.remove());
   try {
-    const r = await fetch(`/api/agy/models`);
+    const r = await fetch(`/api/llm/models`);
     const d = await r.json();
     (d.models || []).forEach((m) => {
       const o = document.createElement("option");
       o.value = m; o.textContent = m; sel.appendChild(o);
     });
     sel.value = d.selected || "";
-    if (msg) msg.textContent = "현재 적용: " + (d.selected || "agy 기본 (Flash)");
+    if (msg) msg.textContent = "현재 적용: " + (d.selected || "기본 모델");
   } catch (e) { if (msg) msg.textContent = "모델 목록 로드 실패"; }
 
   if (btn && !btn._bound) {
@@ -111,13 +131,13 @@ async function loadModelOptions() {
     btn.addEventListener("click", async () => {
       if (msg) msg.textContent = "적용 중…";
       try {
-        const rr = await fetch(`/api/agy/model`, {
+        const rr = await fetch(`/api/llm/model`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: sel.value }),
         });
         const dd = await rr.json();
         if (rr.ok && dd.ok) {
-          if (msg) msg.textContent = "✓ 적용됨 — 현재: " + (dd.selected || "agy 기본 (Flash)");
+          if (msg) msg.textContent = "✓ 적용됨 — 현재: " + (dd.selected || "기본 모델");
         } else if (msg) { msg.textContent = "적용 실패"; }
       } catch (e) { if (msg) msg.textContent = "적용 실패: " + e; }
     });

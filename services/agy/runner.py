@@ -79,19 +79,25 @@ _GUARD_SYSTEM = (
 )
 
 
-class AgyError(RuntimeError):
+from services.llm_errors import (
+    LLMError as _LLMError, LLMNotInstalled as _LLMNotInstalled,
+    LLMNotAuthenticated as _LLMNotAuthenticated, LLMQuotaExceeded as _LLMQuotaExceeded,
+)
+
+
+class AgyError(_LLMError):
     """agy 호출 일반 오류."""
 
 
-class AgyNotInstalled(AgyError):
+class AgyNotInstalled(_LLMNotInstalled, AgyError):
     """`agy` 실행 파일을 찾을 수 없음."""
 
 
-class AgyNotAuthenticated(AgyError):
+class AgyNotAuthenticated(_LLMNotAuthenticated, AgyError):
     """agy 에 Google 로그인이 안 되어 있음."""
 
 
-class AgyQuotaExceeded(AgyError):
+class AgyQuotaExceeded(_LLMQuotaExceeded, AgyError):
     """Google 계정 할당량(quota) 초과."""
 
 

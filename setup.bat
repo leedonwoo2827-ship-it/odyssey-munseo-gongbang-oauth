@@ -86,6 +86,24 @@ if errorlevel 1 (
 )
 echo step:agy-done >> "%LOG%"
 
+REM 4b) OpenAI Codex CLI (optional, for OpenAI/ChatGPT provider) - best effort via npm
+echo       Checking OpenAI Codex CLI (codex) ...
+where codex >nul 2>nul
+if errorlevel 1 (
+  where npm >nul 2>nul
+  if not errorlevel 1 (
+    echo       codex not found - trying npm i -g @openai/codex ^(needs internet^) ...
+    cmd /c npm i -g @openai/codex
+  )
+)
+where codex >nul 2>nul
+if errorlevel 1 (
+  echo       [NOTE] codex not installed - OpenAI provider optional, see docs\openai-codex\install.md
+) else (
+  echo       [OK] codex installed
+)
+echo step:codex-done >> "%LOG%"
+
 REM 5) First-time setup - data dirs / DB (no prompt)
 set "ODYSSEUS_SKIP_ADMIN_PROMPT=1"
 "%VPY%" setup.py

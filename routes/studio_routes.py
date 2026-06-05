@@ -149,18 +149,18 @@ def setup_studio_routes():
 
     @router.get("/settings")
     async def get_settings():
-        """LLM 연결 상태. API 키 입력이 없다 — agy(Antigravity CLI) 설치/로그인 여부를 표시.
-
-        (과거 liteLLM URL/키 입력 방식을 대체.)
-        """
-        from services.agy import auth as agy_auth
-        st = agy_auth.status()
+        """LLM 연결 상태(활성 공급자 기준). API 키 입력 없음 — CLI 로그인 여부를 표시."""
+        from services import llm_backend
+        st = llm_backend.status_all()
+        active = st["active"]
         return {
-            "backend": "antigravity-cli",
-            "installed": st["installed"],
-            "authenticated": st["authenticated"],
-            "email": st["email"],
-            "default_model": config.DEFAULT_MODEL,
+            "backend": st["provider"],
+            "provider": st["provider"],
+            "label": active["label"],
+            "installed": active["installed"],
+            "authenticated": active["authenticated"],
+            "email": active["email"],
+            "selected_model": llm_backend.get_model(),
         }
 
     @router.get("/health")

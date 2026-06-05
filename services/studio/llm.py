@@ -1,8 +1,7 @@
-"""LLM 호출 래퍼 — 구글 공식 Antigravity CLI(`agy`)로 라우팅.
+"""LLM 호출 래퍼 — 활성 공급자(Gemini/agy ↔ OpenAI/codex)로 라우팅.
 
-API 키를 쓰지 않는다. 인증/할당량은 agy 가 담당하며(사용자가 `agy` 에 1회 Google 로그인),
-여기서는 services.agy.AgyClient(드롭인) 를 통해 비대화식 호출 결과만 받는다.
-(과거 회사 liteLLM 프록시(ubion_llm) 의존은 제거됨.)
+API 키를 쓰지 않는다. 인증/할당량은 각 CLI(agy / codex)가 담당하며(1회 로그인),
+services.llm_backend 디스패처를 통해 활성 공급자의 client 로 비대화식 호출한다.
 """
 from __future__ import annotations
 
@@ -12,37 +11,37 @@ from typing import Any, Dict, List, Optional
 
 from . import config
 
-_client = None
-
 
 class LLMConfigError(RuntimeError):
-    """agy 미설치/미로그인 등 '설정' 성격의 문제(파이프라인이 친절히 표시)."""
+    """공급자 CLI 미설치/미로그인 등 '설정' 성격의 문제(파이프라인이 친절히 표시)."""
 
 
 def _get_client():
-    """AgyClient 싱글톤. agy 미설치면 LLMConfigError 로 친절히 안내."""
-    global _client
-    from services.agy import auth as agy_auth
-    if not agy_auth.is_installed():
+    """활성 공급자의 client. 미설치면 LLMConfigError 로 친절히 안내."""
+    from services import llm_backend
+    auth = llm_backend.active_auth()
+    if not auth.is_installed():
+        prov = llm_backend.get_provider()
+        if prov == "codex":
+            raise LLMConfigError(
+                "OpenAI Codex CLI(`codex`)가 설치되어 있지 않습니다.\n"
+                "docs/openai-codex/install.md 참고 → 설치 후 `codex login` 으로 로그인하세요."
+            )
         raise LLMConfigError(
             "Antigravity CLI(`agy`)가 설치되어 있지 않습니다.\n"
-            "docs/antigravity/install.md 를 참고해 설치한 뒤, 터미널에서 `agy` 를 한 번 실행해 "
-            "Google 계정으로 로그인하세요."
+            "docs/antigravity/install.md 참고 → 설치 후 터미널에서 `agy` 로 Google 로그인하세요."
         )
-    if _client is None:
-        from services.agy import AgyClient
-        _client = AgyClient()
-    return _client
+    return llm_backend.active_client()
 
 
 def chat(messages: List[Dict[str, str]], model: Optional[str] = None,
          max_tokens: int = 4000) -> str:
     """messages(OpenAI 형식) → 응답 텍스트."""
-    from services.agy import AgyNotInstalled, AgyNotAuthenticated
+    from services.llm_errors import LLMNotInstalled, LLMNotAuthenticated
     client = _get_client()
     try:
         resp = client.chat(model or config.DEFAULT_MODEL, messages, max_tokens=max_tokens)
-    except (AgyNotInstalled, AgyNotAuthenticated) as e:
+    except (LLMNotInstalled, LLMNotAuthenticated) as e:
         # 설정 성격의 오류는 LLMConfigError 로 변환해 파이프라인이 안내문으로 표시
         raise LLMConfigError(str(e)) from e
     return resp.text or ""

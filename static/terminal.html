@@ -22,6 +22,8 @@
     .btns { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
     button { font-size: 14px; border-radius: 9px; padding: 10px 16px; cursor: pointer; border: 1px solid #2a3142; background: #1b2231; color: #cdd4e0; }
     button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 700; }
+    .provbtn { margin-right: 8px; }
+    .provbtn.active { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 700; }
     button.danger { border-color: #5b2b33; }
     button:hover { filter: brightness(1.12); }
     .msg { margin-top: 14px; font-size: 13.5px; min-height: 18px; }
@@ -38,11 +40,16 @@
 </head>
 <body>
   <header>
-    <h1>🔑 agy 로그인 관리</h1>
-    <span class="hint">Google 계정으로 로그인하면 그 계정 할당량으로 Gemini를 사용합니다. (API 키 불필요)</span>
+    <h1>🔑 로그인 관리</h1>
+    <span class="hint">CLI 로그인만으로 그 계정 할당량으로 LLM 사용. (API 키 불필요)</span>
   </header>
 
   <div class="card">
+    <h2>공급자</h2>
+    <div style="margin:6px 0 14px;">
+      <button id="prov-agy" class="provbtn" type="button">Gemini (Google)</button>
+      <button id="prov-codex" class="provbtn" type="button">OpenAI (ChatGPT)</button>
+    </div>
     <h2>현재 계정</h2>
     <div class="acct" id="acct">상태 확인 중…</div>
     <div class="btns" id="btns"></div>
@@ -78,21 +85,37 @@
       const msgEl = document.getElementById('msg');
       function setMsg(t, c) { msgEl.textContent = t; msgEl.className = 'msg ' + (c || 'info'); }
 
+      let PROVIDER = 'agy', LABEL = 'Gemini (Google)';
+      function syncProvBtns() {
+        document.getElementById('prov-agy').className = 'provbtn' + (PROVIDER === 'agy' ? ' active' : '');
+        document.getElementById('prov-codex').className = 'provbtn' + (PROVIDER === 'codex' ? ' active' : '');
+      }
+      async function setProvider(name) {
+        try {
+          await fetch('/api/llm/provider', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: name }) });
+        } catch (e) {}
+        refresh();
+      }
+      document.getElementById('prov-agy').onclick = () => setProvider('agy');
+      document.getElementById('prov-codex').onclick = () => setProvider('codex');
+
       async function refresh() {
         try {
-          const r = await fetch('/api/auth/google/status');
+          const r = await fetch('/api/auth/cli/status');
           const s = await r.json();
-          if (!s.agy_installed) {
-            acctEl.innerHTML = '<span class="badge no">agy 미설치</span>';
-            setMsg('Antigravity CLI(agy)가 설치되지 않았습니다. 설치 후 새로고침하세요.', 'bad');
+          PROVIDER = s.provider || 'agy'; LABEL = s.label || PROVIDER;
+          syncProvBtns();
+          if (!s.installed) {
+            acctEl.innerHTML = '<span class="badge no">' + LABEL + ' CLI 미설치</span>';
+            setMsg(LABEL + ' CLI가 설치되지 않았습니다. 설치 후 새로고침하세요.', 'bad');
             renderBtns(false, false); return;
           }
-          if (s.agy_authenticated) {
-            acctEl.innerHTML = '<span class="email">' + (s.agy_email || '') + '</span> <span class="badge ok">로그인됨</span>';
+          if (s.authenticated) {
+            acctEl.innerHTML = '<span class="email">' + (s.email || LABEL + ' 계정') + '</span> <span class="badge ok">로그인됨</span>';
           } else {
-            acctEl.innerHTML = '<span class="badge no">로그인 안 됨</span>';
+            acctEl.innerHTML = '<span class="badge no">로그인 안 됨</span> <span style="color:#8a93a6;font-size:13px;">(' + LABEL + ')</span>';
           }
-          renderBtns(true, !!s.agy_authenticated);
+          renderBtns(true, !!s.authenticated);
         } catch (e) { setMsg('상태 확인 실패: ' + e, 'bad'); }
       }
 
@@ -100,7 +123,7 @@
         btnsEl.innerHTML = '';
         const login = document.createElement('button');
         login.className = 'primary';
-        login.textContent = (loggedIn ? '🔑 다시 로그인 (다른 계정)' : '🔑 Google 로그인') + '  [L]';
+        login.textContent = (loggedIn ? '🔑 다시 로그인 (다른 계정)' : '🔑 로그인 (' + LABEL + ')') + '  [L]';
         login.onclick = openLogin;
         btnsEl.appendChild(login);
         if (loggedIn) {
@@ -119,9 +142,9 @@
       async function openLogin() {
         setMsg('터미널 창을 여는 중…', 'info');
         try {
-          const r = await fetch('/api/agy/open-terminal', { method: 'POST' });
+          const r = await fetch('/api/llm/open-terminal', { method: 'POST' });
           const d = await r.json().catch(() => ({}));
-          if (r.ok && d.ok) setMsg('✅ 새 터미널 창에서 안내를 Enter로 넘기고 구글 로그인하세요. 끝나면 [상태 새로고침].', 'ok');
+          if (r.ok && d.ok) setMsg('✅ 새 터미널 창에서 ' + (d.cmd || '로그인 명령') + ' 로 로그인하세요. 끝나면 [상태 새로고침].', 'ok');
           else setMsg((d.message || '터미널을 열지 못했습니다.') + ' 아래 고급 → [실제 cmd 창 열기]를 써보세요.', 'bad');
         } catch (e) { setMsg('터미널 열기 실패: ' + e, 'bad'); }
       }
@@ -129,7 +152,7 @@
       async function doLogout() {
         setMsg('로그아웃 중…', 'info');
         try {
-          const r = await fetch('/api/agy/logout', { method: 'POST' });
+          const r = await fetch('/api/llm/logout', { method: 'POST' });
           const d = await r.json().catch(() => ({}));
           setMsg((d.message || '로그아웃되었습니다.'), 'ok');
           setTimeout(refresh, 400);
@@ -172,7 +195,7 @@
       document.querySelectorAll('.bar button[data-cmd]').forEach((b) => b.addEventListener('click', () => { const c = b.getAttribute('data-cmd'); if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'in', data: c })); }));
       document.getElementById('btn-clear').addEventListener('click', () => term && term.clear());
       document.getElementById('btn-oscmd').addEventListener('click', async () => {
-        try { const r = await fetch('/api/agy/open-terminal', { method: 'POST' }); const d = await r.json().catch(() => ({})); setMsg(d.ok ? '실제 cmd 창을 열었습니다.' : (d.message || '실패'), d.ok ? 'ok' : 'bad'); }
+        try { const r = await fetch('/api/llm/open-terminal', { method: 'POST' }); const d = await r.json().catch(() => ({})); setMsg(d.ok ? '실제 cmd 창을 열었습니다.' : (d.message || '실패'), d.ok ? 'ok' : 'bad'); }
         catch (e) { setMsg('실패: ' + e, 'bad'); }
       });
     })();
