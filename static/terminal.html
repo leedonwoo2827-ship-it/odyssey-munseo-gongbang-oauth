@@ -46,14 +46,6 @@
     <h2>현재 계정</h2>
     <div class="acct" id="acct">상태 확인 중…</div>
     <div class="btns" id="btns"></div>
-    <div style="margin-top:14px;">
-      <label for="modelSel" style="font-size:13px;color:#9aa4b8;">사용 모델&nbsp;</label>
-      <select id="modelSel" style="background:#1b2231;color:#cdd4e0;border:1px solid #2a3142;border-radius:8px;padding:6px 10px;font-size:13px;min-width:240px;">
-        <option value="">기본값 (agy 기본 · Gemini 3.5 Flash)</option>
-      </select>
-      <span id="modelMsg" style="font-size:12px;color:#9aa4b8;margin-left:8px;"></span>
-      <div style="font-size:12px;color:#6f7890;margin-top:6px;">Pro(High)일수록 길고 자세하지만 할당량을 더 씁니다.</div>
-    </div>
     <div class="msg info" id="msg"></div>
     <div class="steps">
       <b>① 로그인</b> — <b>[Google 로그인]</b> 클릭 → 새로 뜬 검은 터미널 창에서 안내(테마 → 약관 → 폴더 신뢰)를
@@ -144,37 +136,7 @@
         } catch (e) { setMsg('로그아웃 실패: ' + e, 'bad'); }
       }
 
-      // 모델 드롭다운 채우기 + 선택 저장
-      const modelSel = document.getElementById('modelSel');
-      const modelMsg = document.getElementById('modelMsg');
-      async function loadModels() {
-        try {
-          const r = await fetch('/api/agy/models');
-          const d = await r.json();
-          const cur = d.selected || '';
-          // 기본 옵션 외 모델들 추가
-          (d.models || []).forEach((m) => {
-            const o = document.createElement('option');
-            o.value = m; o.textContent = m;
-            modelSel.appendChild(o);
-          });
-          modelSel.value = cur;
-          modelMsg.textContent = cur ? '' : '(현재: agy 기본)';
-        } catch (e) { modelMsg.textContent = '모델 목록 로드 실패'; }
-      }
-      modelSel.addEventListener('change', async () => {
-        const m = modelSel.value;
-        modelMsg.textContent = '저장 중…';
-        try {
-          const r = await fetch('/api/agy/model', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: m }),
-          });
-          const d = await r.json();
-          modelMsg.textContent = (r.ok && d.ok) ? '✓ 적용됨' + (m ? '' : ' (agy 기본)') : '저장 실패';
-        } catch (e) { modelMsg.textContent = '저장 실패: ' + e; }
-      });
-      loadModels();
+      // (모델 선택은 studio 의 [⚙ 연결 상태] 창에서 합니다 — 여기선 로그인/계정만 관리)
 
       refresh();
       window.addEventListener('focus', refresh);

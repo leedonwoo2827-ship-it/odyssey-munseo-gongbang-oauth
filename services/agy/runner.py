@@ -256,34 +256,41 @@ def _pty_capture(argv: List[str], timeout: int = 120, idle_break: int = 30) -> O
 
 _MODELS_CACHE: Optional[List[str]] = None
 
+# 'Gemini 3.1 Pro (High)' 같은 줄만 매칭(공급자 접두 + 영숫자/공백/()/.-/ 만 허용)
+_MODEL_LINE_RE = re.compile(r"^(Gemini|Claude|GPT|gemini|claude|gpt)[A-Za-z0-9 .\-()/]*$")
+
+
+def _parse_models(out: str) -> List[str]:
+    models: List[str] = []
+    for line in (out or "").splitlines():
+        s = _strip_ansi(line).strip()
+        # 앞쪽 선택 마커(> ● * - 숫자. 등) 제거
+        s = re.sub(r"^[>\-\*●•‣→\s\d.\)]+", "", s).strip()
+        if _MODEL_LINE_RE.match(s) and s not in models:
+            models.append(s)
+    return models
+
 
 def list_models(force: bool = False) -> List[str]:
-    """`agy models` 출력에서 모델 이름 목록 추출(프로세스 수명 동안 캐시)."""
+    """`agy models` 출력에서 모델 이름 목록 추출(캐시). 실패 시 폴백 목록."""
     global _MODELS_CACHE
     if _MODELS_CACHE is not None and not force:
         return _MODELS_CACHE
     path = agy_path()
     if not path:
-        return []
-    out = _pty_capture([path, "models"], timeout=30, idle_break=4) or ""
-    if not out.strip():
+        return list(_FALLBACK_MODELS)
+    out = _pty_capture([path, "models"], timeout=30, idle_break=6) or ""
+    models = _parse_models(out)
+    if not models:
         try:
             p = subprocess.run([path, "models"], capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=30)
-            out = _strip_ansi((p.stdout or "") + "\n" + (p.stderr or ""))
+            models = _parse_models((p.stdout or "") + "\n" + (p.stderr or ""))
         except Exception:
-            out = ""
-    models: List[str] = []
-    for line in out.splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        # 모델 라인만(공급자 접두) — 프롬프트/경로/배너 줄 제외
-        if any(s.startswith(k) for k in ("Gemini", "Claude", "GPT", "gemini", "claude", "gpt")):
-            if s not in models:
-                models.append(s)
-    if models:
-        _MODELS_CACHE = models
+            pass
+    if not models:
+        models = list(_FALLBACK_MODELS)  # 파싱 실패 → 확인된 목록 사용
+    _MODELS_CACHE = models
     return models
 
 

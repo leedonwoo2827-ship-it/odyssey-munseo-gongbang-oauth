@@ -87,11 +87,14 @@ async function openSettings(firstTime) {
   checkHealth();
 }
 
-// agy 모델 드롭다운 채우기 + 선택 저장 (studio 연결상태 모달)
+// agy 모델 드롭다운: 목록은 agy models 에서 동적으로, [적용] 버튼으로 저장
 async function loadModelOptions() {
   const sel = $("#studio-model");
   const msg = $("#studio-model-msg");
-  if (!sel || sel._loaded) { return; }
+  const btn = $("#apply-model");
+  if (!sel) return;
+  // 목록은 매번 새로 채움(중복 방지 위해 기본 옵션만 남기고 비움)
+  sel.querySelectorAll("option:not([value=''])").forEach((o) => o.remove());
   try {
     const r = await fetch(`/api/agy/models`);
     const d = await r.json();
@@ -100,20 +103,25 @@ async function loadModelOptions() {
       o.value = m; o.textContent = m; sel.appendChild(o);
     });
     sel.value = d.selected || "";
-    sel._loaded = true;
-    if (msg) msg.textContent = (d.selected ? "" : "(현재: agy 기본)");
-    sel.addEventListener("change", async () => {
-      if (msg) msg.textContent = "저장 중…";
+    if (msg) msg.textContent = "현재 적용: " + (d.selected || "agy 기본 (Flash)");
+  } catch (e) { if (msg) msg.textContent = "모델 목록 로드 실패"; }
+
+  if (btn && !btn._bound) {
+    btn._bound = true;
+    btn.addEventListener("click", async () => {
+      if (msg) msg.textContent = "적용 중…";
       try {
         const rr = await fetch(`/api/agy/model`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: sel.value }),
         });
         const dd = await rr.json();
-        if (msg) msg.textContent = (rr.ok && dd.ok) ? "✓ 적용됨" : "저장 실패";
-      } catch (e) { if (msg) msg.textContent = "저장 실패"; }
+        if (rr.ok && dd.ok) {
+          if (msg) msg.textContent = "✓ 적용됨 — 현재: " + (dd.selected || "agy 기본 (Flash)");
+        } else if (msg) { msg.textContent = "적용 실패"; }
+      } catch (e) { if (msg) msg.textContent = "적용 실패: " + e; }
     });
-  } catch (e) { if (msg) msg.textContent = "모델 목록 로드 실패"; }
+  }
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
