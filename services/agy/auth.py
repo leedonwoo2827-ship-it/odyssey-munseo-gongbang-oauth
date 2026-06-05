@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +17,68 @@ from .runner import is_installed  # re-export 편의
 
 # agy 인증정보 파일(있으면 최우선). 환경변수로 명시 지정 가능.
 CREDS_PATH = os.environ.get("AGY_CREDS_PATH", "").strip()
+
+# ── Windows 자격증명 관리자 ───────────────────────────────────────────────
+# agy(1.0.5)는 토큰을 파일이 아니라 Windows 자격증명 관리자에 저장한다.
+#   cmdkey: LegacyGeneric:target=gemini:antigravity  (사용자: antigravity)
+# 환경변수 AGY_CRED_TARGET 로 대상 이름을 덮어쓸 수 있다.
+_WIN = sys.platform == "win32"
+WIN_CRED_TARGET = os.environ.get("AGY_CRED_TARGET", "").strip()
+_WIN_CRED_KEYWORDS = ("antigravity", "gemini", "cloudcode")
+
+
+def _win_cred_targets() -> list[str]:
+    """agy 관련 Windows 자격증명 대상 이름 목록."""
+    if not _WIN:
+        return []
+    if WIN_CRED_TARGET:
+        return [WIN_CRED_TARGET]
+    targets: list[str] = []
+    try:
+        import win32cred
+        for c in win32cred.CredEnumerate(None, 0):
+            t = (c.get("TargetName") or "")
+            if any(s in t.lower() for s in _WIN_CRED_KEYWORDS):
+                targets.append(t)
+    except Exception:
+        pass
+    if "gemini:antigravity" not in targets:
+        targets.append("gemini:antigravity")  # cmdkey 로 확인된 기본값
+    return targets
+
+
+def _win_cred_blob(target: str):
+    try:
+        import win32cred
+        c = win32cred.CredRead(target, win32cred.CRED_TYPE_GENERIC)
+        return c.get("CredentialBlob")
+    except Exception:
+        return None
+
+
+def _win_cred_entries() -> list[tuple[str, bytes]]:
+    """존재하는 (대상이름, blob) 목록."""
+    out = []
+    for t in _win_cred_targets():
+        blob = _win_cred_blob(t)
+        if blob is not None:
+            out.append((t, blob))
+    return out
+
+
+def _blob_to_obj(blob) -> Optional[dict]:
+    """자격증명 blob(bytes) → JSON dict (utf-8/utf-16 관용 디코드)."""
+    if not blob:
+        return None
+    raw = bytes(blob) if not isinstance(blob, (bytes, bytearray)) else blob
+    for enc in ("utf-8", "utf-16-le", "utf-16"):
+        try:
+            s = raw.decode(enc, errors="ignore").strip().strip("\x00").strip()
+            if s and s[0] in "{[":
+                return json.loads(s)
+        except Exception:
+            continue
+    return None
 
 # agy 1.0.5 의 자격증명 저장 위치가 확정 공개되지 않아, 가능한 디렉터리를 모두 훑는다.
 def _agy_dirs() -> list[Path]:
@@ -55,7 +118,7 @@ def _cred_json_files() -> list[Path]:
 
 
 def creds_exist() -> bool:
-    return any(_cred_json_files())
+    return bool(_win_cred_entries()) or bool(_cred_json_files())
 
 
 def _deep_find(obj, keys) -> Optional[str]:
@@ -130,11 +193,19 @@ def _looks_like_creds(obj) -> bool:
 
 
 def get_account_email() -> Optional[str]:
-    """agy 에 로그인된 Google 계정 email. 미로그인/실패 시 None.
+    """agy 에 로그인된 Google 계정 email. 못 읽으면 None(로그인 여부는 is_authenticated 로).
 
-    agy 자격증명 위치가 확정 공개되지 않아, 가능한 디렉터리의 .json 들을 훑어
-    email(또는 id_token/access_token)을 찾는다.
+    1) Windows 자격증명 관리자(gemini:antigravity)의 blob 에서 추출 시도
+    2) 실패 시 파일 기반(.json) 스캔
     """
+    # 1) Windows 자격증명
+    for _t, blob in _win_cred_entries():
+        obj = _blob_to_obj(blob)
+        if obj:
+            email = _email_from_obj(obj)
+            if email:
+                return email
+    # 2) 파일 기반(POSIX 등)
     for p in _cred_json_files():
         try:
             with open(p, "r", encoding="utf-8") as f:
@@ -148,17 +219,35 @@ def get_account_email() -> Optional[str]:
 
 
 def is_authenticated() -> bool:
-    """agy 설치 + 로그인 email 확인 가능 여부."""
-    return is_installed() and get_account_email() is not None
+    """agy 설치 + 로그인 여부. (Windows 자격증명 존재 = 로그인으로 간주; email 파싱 실패해도 OK)"""
+    if not is_installed():
+        return False
+    if _win_cred_entries():
+        return True
+    return get_account_email() is not None
 
 
 def logout() -> bool:
-    """agy 자격증명 파일(토큰/이메일 포함 .json)을 삭제해 로그아웃. 하나라도 지웠으면 True.
+    """저장된 agy 자격증명을 지워 로그아웃(계정 전환 준비). 하나라도 지웠으면 True.
 
-    agy(1.0.5)에는 `logout` 하위명령이 없어, 저장된 OAuth 자격증명을 지우는 방식으로
-    로그아웃한다. 이후 `agy` 를 다시 실행하면 새 Google 계정으로 로그인할 수 있다.
+    agy(1.0.5)에는 `logout` 하위명령이 없어, 저장된 OAuth 자격증명을 지운다.
+    Windows 는 자격증명 관리자 항목을, 그 외는 .json 파일을 삭제한다.
+    이후 `agy` 를 다시 실행하면 새 Google 계정으로 로그인할 수 있다.
     """
     removed = False
+    # 1) Windows 자격증명 삭제
+    if _WIN:
+        try:
+            import win32cred
+            for t in _win_cred_targets():
+                try:
+                    win32cred.CredDelete(t, win32cred.CRED_TYPE_GENERIC)
+                    removed = True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    # 2) 파일 기반 삭제
     for p in _cred_json_files():
         try:
             with open(p, "r", encoding="utf-8") as f:
@@ -177,10 +266,12 @@ def logout() -> bool:
 def status() -> dict:
     """UI/진단용 상태 요약."""
     installed = is_installed()
-    email = get_account_email() if installed else None
+    authed = is_authenticated() if installed else False
+    email = get_account_email() if authed else None
     return {
         "installed": installed,
-        "authenticated": bool(email),
+        "authenticated": authed,
         "email": email,
+        "win_cred_targets": [t for t, _ in _win_cred_entries()],
         "creds_files": [str(p) for p in _cred_json_files()][:10],
     }

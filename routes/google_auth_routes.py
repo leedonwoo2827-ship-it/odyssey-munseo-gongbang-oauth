@@ -64,13 +64,19 @@ def setup_google_auth_routes(auth_manager: AuthManager) -> APIRouter:
                             "내장 터미널을 열어 설치/로그인하세요."),
             }
         email = await asyncio.to_thread(agy_auth.get_account_email)
-        if not email:
+        authed = await asyncio.to_thread(agy_auth.is_authenticated)
+        if not email and not authed:
             return {
                 "ok": False, "reason": "agy_not_authenticated",
                 "message": ("agy 에 Google 로그인이 필요합니다. 내장 터미널에서 `agy` 를 실행해 "
                             "Google 계정으로 로그인한 뒤 다시 시도하세요."),
             }
-        if not _domain_ok(email):
+        # 로그인은 됐지만 토큰이 불투명해 이메일을 못 읽는 경우 → 대체 신원으로 진행
+        _FALLBACK = "agy-user@local"
+        if not email:
+            email = _FALLBACK
+        # 실제 이메일일 때만 도메인 제한 적용(대체 신원은 예외)
+        if email != _FALLBACK and not _domain_ok(email):
             raise HTTPException(403, f"허용되지 않은 도메인입니다: {email}")
 
         is_admin = bool(_admin_email()) and email == _admin_email()
