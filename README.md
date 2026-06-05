@@ -100,7 +100,7 @@ venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 7000
 - [04 · 새 유형(레시피) 추가하기](docs/studio/04_레시피_추가하기.md)
 - [05 · 회사 양식(HWPX·PPTX) 만들기](docs/studio/05_양식_만들기.md)
 - [07 · 문제 해결 FAQ](docs/studio/07_문제해결_FAQ.md)
-- **LLM/로그인(Antigravity·Google)**: [설치](docs/antigravity/install.md) · [agy 명령어 모음](docs/antigravity/commands.md) · [비용·할당량 비교](docs/antigravity/비용_할당량_비교.md) · [아키텍처](docs/antigravity/architecture.md) · [조사](docs/antigravity/research.md)
+- **LLM/로그인(Antigravity·Google)**: [설치](docs/antigravity/install.md) · [agy 명령어 모음](docs/antigravity/commands.md) · [비용·할당량 비교](docs/antigravity/비용_할당량_비교.md) · [분량·품질 올리기 팁](docs/antigravity/팁_분량과_품질_올리기.md) · [아키텍처](docs/antigravity/architecture.md) · [조사](docs/antigravity/research.md)
 
 > 레시피는 [`knowledge/recipes/`](knowledge/recipes/), 회사 양식은 [`assets/`](assets/) 폴더에 있습니다.
 > 각 폴더에는 그 자리에서 읽을 수 있는 `_README.md` 가 있습니다.
