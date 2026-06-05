@@ -274,7 +274,8 @@ class AgyClient:
                     if not proc.isalive():
                         break
                     # 출력이 멈춘 지 충분히 지났고 이미 받은 게 있으면 완료로 간주
-                    if chunks and (time.monotonic() - last_data) > 8:
+                    # (생성 중 잠깐 멈춰도 잘리지 않게 넉넉히 — 주 종료신호는 프로세스 exit)
+                    if chunks and (time.monotonic() - last_data) > 30:
                         break
                     time.sleep(0.05)
         finally:
