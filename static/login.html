@@ -57,9 +57,9 @@
     <div id="status" class="status info">상태 확인 중…</div>
 
     <div class="term">
-      처음이거나 계정을 바꾸려면 <strong>agy 터미널</strong>에서 로그인하세요.<br>
-      <a class="linkbtn" href="/terminal" target="_blank" rel="noopener">🖥️ agy 터미널 열기</a>
-      <div style="margin-top:8px;">터미널에서 <code>agy</code> 입력 → Google 로그인. 계정 전환은 <code>agy logout</code>.</div>
+      처음이거나 계정을 바꾸려면 <strong>터미널 창</strong>을 열어 로그인하세요.<br>
+      <button id="openTerm" class="linkbtn" type="button">🖥️ 터미널 열기</button>
+      <div id="termMsg" style="margin-top:8px;">버튼을 누르면 검은 터미널 창이 하나 뜹니다. 그 창에 <code>agy</code> 를 입력 → 브라우저에서 Google 로그인. 계정 전환은 <code>agy logout</code>.</div>
     </div>
   </div>
 
@@ -102,6 +102,27 @@
           setStatus('로그인 오류: ' + e, 'bad');
         } finally {
           btnText.textContent = 'Google로 로그인'; btn.disabled = false; refresh();
+        }
+      });
+
+      // "터미널 열기" → 서버가 실제 OS 터미널 창을 띄워 그 안에서 agy 실행
+      const openTerm = document.getElementById('openTerm');
+      const termMsg = document.getElementById('termMsg');
+      openTerm.addEventListener('click', async () => {
+        openTerm.disabled = true;
+        try {
+          const r = await fetch('/api/agy/open-terminal', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d.ok) {
+            termMsg.innerHTML = '✅ 터미널 창이 열렸습니다. 그 창에 <code>agy</code> 입력 → Google 로그인 후, 이 페이지의 [Google로 로그인]을 누르세요.';
+          } else {
+            termMsg.textContent = (d.message || '터미널을 열지 못했습니다.') + ' 직접 cmd 를 열어 agy 를 실행해도 됩니다.';
+          }
+        } catch (e) {
+          termMsg.textContent = '터미널 열기 실패: ' + e + ' — 직접 cmd 에서 agy 를 실행하세요.';
+        } finally {
+          openTerm.disabled = false;
+          setTimeout(refresh, 500);
         }
       });
 

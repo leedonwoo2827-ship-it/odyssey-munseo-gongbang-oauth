@@ -178,6 +178,8 @@ if AUTH_ENABLED:
         # (WS /api/agy/terminal/ws 는 loopback 으로 자체 제한 + BaseHTTPMiddleware 미적용)
         "/terminal",
         "/api/agy/terminal/diag",
+        # OS 터미널 창을 띄워 agy 로그인 — 로그인 전에 호출되어야 하므로 예외(loopback 자체제한).
+        "/api/agy/open-terminal",
     }
     AUTH_EXEMPT_PREFIXES = ["/static"]
     # Dynamic paths whose own handler proves identity via a path-embedded

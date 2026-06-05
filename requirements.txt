@@ -41,9 +41,7 @@ pytest
 pytest-asyncio
 # ── 문서 생산 스튜디오 (AIM N팀) ─────────────────────────────────
 # LLM 백엔드는 구글 공식 Antigravity CLI(`agy`) subprocess 호출 — API 키/SDK 불필요.
-# 웹 내장 터미널(agy 로그인/계정전환/모델변경/사용량) PTY 백엔드:
-pywinpty; platform_system == "Windows"
-ptyprocess; platform_system != "Windows"
+# agy 로그인/계정전환은 앱의 '터미널 열기' 버튼이 실제 OS 터미널 창을 띄워 처리(추가 의존성 없음).
 requests
 # 레시피 카탈로그(YAML)
 pyyaml

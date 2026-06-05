@@ -35,8 +35,76 @@ def _is_direct_loopback(ws: WebSocket) -> bool:
     return True
 
 
+def _client_is_loopback(request: Request) -> bool:
+    host = request.client.host if request.client else None
+    if host not in ("127.0.0.1", "::1"):
+        return False
+    for h in _PROXY_FWD_HEADERS:
+        if request.headers.get(h):
+            return False
+    return True
+
+
 def setup_agy_terminal_routes() -> APIRouter:
     router = APIRouter(tags=["agy-terminal"])
+
+    @router.post("/api/agy/open-terminal")
+    async def open_os_terminal(request: Request):
+        """진짜 OS 터미널 창을 하나 띄워 그 안에서 `agy` 를 실행한다.
+
+        브라우저 내장 터미널(pywinpty) 대신 사용하는 기본 방식. 사용자는 새로 뜬
+        cmd/터미널 창에서 `agy` 로 Google 로그인·계정전환을 한다. (로컬 전용)
+        """
+        import os
+        import subprocess
+        import sys
+
+        if not _client_is_loopback(request):
+            return JSONResponse(status_code=403,
+                                content={"ok": False, "message": "로컬(127.0.0.1)에서만 가능합니다."})
+
+        agy = os.environ.get("AGY_BIN", "agy")
+        try:
+            if sys.platform == "win32":
+                # 새 콘솔 창에서 agy 실행 후 창 유지(/k). agy 미설치면 그 창에 오류가 보임.
+                # start 의 첫 인자("")는 창 제목 — 공백/괄호 파싱 문제를 피하려 빈 제목 사용.
+                subprocess.Popen(["cmd", "/c", "start", "", "cmd", "/k", agy], close_fds=True)
+                method = "windows-cmd"
+            elif sys.platform == "darwin":
+                subprocess.Popen(["osascript", "-e",
+                                  f'tell application "Terminal" to do script "{agy}"'])
+                method = "macos-terminal"
+            else:
+                # 리눅스: 흔한 터미널 에뮬레이터 순서대로 시도
+                launched = False
+                for term in (["x-terminal-emulator", "-e", agy],
+                             ["gnome-terminal", "--", agy],
+                             ["konsole", "-e", agy],
+                             ["xterm", "-e", agy]):
+                    try:
+                        subprocess.Popen(term)
+                        launched = True
+                        break
+                    except FileNotFoundError:
+                        continue
+                if not launched:
+                    return JSONResponse(status_code=500, content={
+                        "ok": False,
+                        "message": "터미널을 열지 못했습니다. 직접 터미널에서 `agy` 를 실행하세요.",
+                    })
+                method = "linux-terminal"
+            return {"ok": True, "method": method,
+                    "message": "새 터미널 창이 열렸습니다. 그 창에서 Google 로그인을 진행하세요. "
+                               "(계정 전환은 agy logout 후 다시 agy)"}
+        except FileNotFoundError as e:
+            return JSONResponse(status_code=500, content={
+                "ok": False,
+                "message": f"터미널 실행 파일을 찾지 못했습니다: {e}. 직접 cmd 에서 `agy` 실행하세요.",
+            })
+        except Exception as e:
+            return JSONResponse(status_code=500, content={
+                "ok": False, "message": f"터미널 열기 실패: {e}",
+            })
 
     @router.get("/api/agy/terminal/diag")
     async def terminal_diag(request: Request):

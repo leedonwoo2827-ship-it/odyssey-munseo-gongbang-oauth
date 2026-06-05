@@ -25,6 +25,7 @@ async function init() {
   $("#open-settings").addEventListener("click", () => openSettings(false));
   $("#close-settings").addEventListener("click", closeSettings);
   $("#refresh-settings").addEventListener("click", () => openSettings(false));
+  $("#open-terminal").addEventListener("click", openTerminal);
   // 산출물 목록 모달
   $("#open-outputs").addEventListener("click", openOutputs);
   $("#close-outputs").addEventListener("click", () => { $("#outputs-overlay").style.display = "none"; });
@@ -82,6 +83,25 @@ async function openSettings(firstTime) {
 }
 
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
+
+// "터미널 열기" → 서버가 실제 OS 터미널 창을 띄워 그 안에서 agy 실행(로그인/계정전환)
+async function openTerminal() {
+  const st = $("#set-status");
+  st.className = "modal-status"; st.textContent = "터미널 창을 여는 중…";
+  try {
+    const r = await fetch(`/api/agy/open-terminal`, { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.ok) {
+      st.className = "modal-status ok";
+      st.textContent = "✓ 터미널 창이 열렸습니다. 그 창에 agy 입력 → Google 로그인(계정전환은 agy logout). 끝나면 '상태 새로고침'.";
+    } else {
+      st.className = "modal-status bad";
+      st.textContent = "✗ " + (d.message || "터미널을 열지 못했습니다.") + " 직접 cmd 에서 agy 실행하세요.";
+    }
+  } catch (e) {
+    st.className = "modal-status bad"; st.textContent = "✗ 터미널 열기 실패: " + e;
+  }
+}
 
 // ── 산출물 목록 모달 ─────────────────────────────────────
 async function openOutputs() {

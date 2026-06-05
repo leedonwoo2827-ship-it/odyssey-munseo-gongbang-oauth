@@ -1,105 +1,90 @@
 @echo off
-chcp 65001 >nul
+REM ASCII-only on purpose: Korean text in a .bat breaks on CP949 consoles.
 cd /d "%~dp0"
 set "LOG=%~dp0setup_log.txt"
 echo setup start > "%LOG%"
 
 echo ============================================================
-echo   문서 생산 스튜디오 (AIM N팀) - 설치 setup
+echo   Odyssey Studio (AIM N-team) - SETUP
 echo ============================================================
 echo.
 
-REM 1) Python 확인 (py 런처 우선)
+REM 1) Python (prefer the py launcher)
 set "PY="
 where py >nul 2>nul && set "PY=py -3"
 if not defined PY where python >nul 2>nul && set "PY=python"
 if not defined PY (
-  echo [오류] Python 3.11 이상이 필요합니다.
-  echo        https://www.python.org/downloads/ 에서 설치 후 다시 실행하세요.
-  echo        설치 시 "Add Python to PATH" 체크를 꼭 해주세요.
+  echo [ERROR] Python 3.11+ required.
+  echo         Install from https://www.python.org/downloads/
+  echo         Tick "Add Python to PATH" during install, then re-run.
   echo python-missing >> "%LOG%"
   goto end
 )
-echo [확인] Python 사용: %PY%
+echo [OK] Python: %PY%
 echo step:python-ok >> "%LOG%"
 
-REM 2) 가상환경 생성
+REM 2) Virtual environment
 if not exist "venv\Scripts\python.exe" (
-  echo [1/4] 가상환경 venv 생성 중...
+  echo [1/3] Creating venv ...
   %PY% -m venv venv
 ) else (
-  echo [1/4] 가상환경 이미 있음 - 건너뜀
+  echo [1/3] venv already exists - skip
 )
 set "VPY=venv\Scripts\python.exe"
 if not exist "%VPY%" (
-  echo [오류] 가상환경 생성 실패. Python 재설치 후 다시 시도하세요.
+  echo [ERROR] venv creation failed. Reinstall Python and retry.
   echo venv-fail >> "%LOG%"
   goto end
 )
 echo step:venv-ok >> "%LOG%"
 
-REM 3) 라이브러리 설치
-echo [2/4] 라이브러리 설치 중... 처음엔 몇 분 걸립니다
+REM 3) Libraries
+echo [2/3] Installing libraries ... (first time takes a few minutes)
 "%VPY%" -m pip install --upgrade pip
 "%VPY%" -m pip install -r requirements.txt
 if errorlevel 1 (
-  echo [오류] 라이브러리 설치 실패. 위 빨간 메시지를 확인하세요.
+  echo [ERROR] pip install failed. See the red messages above.
   echo pip-fail >> "%LOG%"
   goto end
 )
 echo step:pip-ok >> "%LOG%"
 
-REM    내장 터미널 PTY 백엔드(pywinpty) 확인 - 없으면 설치
-"%VPY%" -c "import winpty" 2>nul
-if errorlevel 1 (
-  echo       내장 터미널 구성요소(pywinpty) 설치 중...
-  "%VPY%" -m pip install pywinpty
-)
-"%VPY%" -c "import winpty" 2>nul
-if errorlevel 1 (
-  echo       [경고] pywinpty 설치 안됨 - 내장 터미널 대신 cmd 에서 agy 직접 실행하세요
-) else (
-  echo       [확인] 내장 터미널 구성요소 OK
-)
-echo step:pywinpty-done >> "%LOG%"
-
-REM 4) Antigravity CLI(agy) 설치 - best-effort, cmd /c 로 격리(설치 스크립트의 exit 로부터 창 보호)
-echo [3/4] Antigravity CLI(agy) 설치 확인...
+REM 4) Antigravity CLI (agy) - best effort, isolated with cmd /c
+echo [3/3] Checking Antigravity CLI (agy) ...
 where agy >nul 2>nul
 if errorlevel 1 (
-  echo       agy 가 없어 설치를 시도합니다 ^(인터넷 필요^)...
+  echo       agy not found - trying to install ^(needs internet^) ...
   curl -fsSL https://antigravity.google/cli/install.cmd -o "%TEMP%\agy_install.cmd"
   if exist "%TEMP%\agy_install.cmd" cmd /c "%TEMP%\agy_install.cmd"
   del "%TEMP%\agy_install.cmd" >nul 2>nul
 )
 where agy >nul 2>nul
 if errorlevel 1 (
-  echo       [안내] agy 미설치 - 나중에 cmd 에서 직접 설치하거나 docs\antigravity\install.md 참고.
+  echo       [NOTE] agy not installed yet - install later, see docs\antigravity\install.md
 ) else (
-  echo       [확인] agy 설치됨
+  echo       [OK] agy installed
 )
 echo step:agy-done >> "%LOG%"
 
-REM 5) 최초 설정 - 데이터 폴더 / DB 초기화 (프롬프트 없이)
-echo [4/4] 최초 설정 - 데이터 폴더/DB 초기화...
+REM 5) First-time setup - data dirs / DB (no prompt)
 set "ODYSSEUS_SKIP_ADMIN_PROMPT=1"
 "%VPY%" setup.py
 echo step:setup-py-done >> "%LOG%"
 
 echo.
 echo ============================================================
-echo   설치 완료!  남은 건 'Google 로그인 최초 1회' 뿐입니다.
+echo   SETUP COMPLETE.  Next:  double-click run.bat
 echo.
-echo   아래 중 편한 방법으로 Google 로그인(브라우저에서 계정 선택):
-echo     (A) run.bat 실행 후, 화면의 'agy 터미널 열기' 에서  agy  입력
-echo     (B) 또는 이 창에 직접:   agy
-echo.
-echo   그다음 run.bat 더블클릭 -^> 브라우저에서 'Google로 로그인'.
-echo   * API 키 입력 없음(Google 계정 할당량 사용).
+echo   Sign in once with Google:
+echo     1) On the login page, click the "open agy terminal" button
+echo        (a black terminal window opens). In it, type:  agy
+echo        and sign in with Google in the browser.
+echo     2) Back on the page, click the Google login button.
+echo   No API key needed (uses your Google account quota).
 echo ============================================================
 
 :end
 echo.
-echo --- 여기까지 보이면 스크립트가 끝까지 실행된 것입니다. (기록: setup_log.txt) ---
+echo --- If you can read this line, the script finished. (log: setup_log.txt) ---
 echo setup end >> "%LOG%"
 pause
