@@ -82,7 +82,8 @@ def setup_studio_routes():
                           "filename": safe, "path": dest})
 
         try:
-            result = pipeline.create_job(recipe_id, saved, instruction)
+            # 비동기: 'running' 즉시 반환 → 프론트가 GET /jobs/{id} 폴링(긴 agy 호출 타임아웃 회피)
+            result = pipeline.start_job(recipe_id, saved, instruction)
         except ValueError as e:
             raise HTTPException(400, str(e))
         return result
@@ -101,7 +102,7 @@ def setup_studio_routes():
         if not instruction:
             raise HTTPException(400, "수정 지시(instruction)가 필요합니다")
         try:
-            return pipeline.refine_job(job_id, instruction)
+            return pipeline.start_refine(job_id, instruction)
         except ValueError as e:
             raise HTTPException(404, str(e))
 

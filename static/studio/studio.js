@@ -235,6 +235,23 @@ function buildSlot(inp) {
 }
 
 // ── 생성 ─────────────────────────────────────────────────
+function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// 작업이 'running' 이면 완료(done/error)까지 GET /jobs/{id} 폴링.
+// (긴 agy 생성이 단일 HTTP 요청 타임아웃에 걸리지 않도록 백그라운드+폴링 구조)
+async function pollJob(id) {
+  for (let i = 0; i < 360; i++) {   // 최대 ~12분 (2s * 360)
+    await _sleep(2000);
+    try {
+      const r = await fetch(`${API}/jobs/${id}`);
+      const d = await r.json();
+      if (!r.ok) return { id, status: "error", error: d.detail || "작업 조회 실패" };
+      if (d.status && d.status !== "running") return d;
+    } catch (e) { /* 일시 오류는 무시하고 계속 폴링 */ }
+  }
+  return { id, status: "error", error: "생성 시간이 너무 깁니다(12분 초과). 다시 시도해 주세요." };
+}
+
 async function generate() {
   if (!CURRENT) return;
   const fd = new FormData();
@@ -250,7 +267,9 @@ async function generate() {
     const d = await r.json();
     if (!r.ok) { alert(d.detail || "생성 실패"); return; }
     JOB = d.id;
-    renderResult(d);
+    const fin = (d.status === "running") ? await pollJob(d.id) : d;
+    JOB = fin.id || JOB;
+    renderResult(fin);
   } catch (e) {
     alert("요청 실패: " + e);
   } finally {
@@ -270,7 +289,8 @@ async function refine() {
     });
     const d = await r.json();
     if (!r.ok) { alert(d.detail || "수정 실패"); return; }
-    renderResult(d);
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    renderResult(fin);
   } catch (e) {
     alert("요청 실패: " + e);
   } finally {

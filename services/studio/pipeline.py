@@ -132,20 +132,16 @@ def _render_outputs(recipe: Dict[str, Any], content: Any, job_id: str) -> Dict[s
 
 
 # ── 공개 API ─────────────────────────────────────────────────────────
-def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
-               instruction: str = "") -> Dict[str, Any]:
-    """동기 실행(생성). saved_inputs: [{key,label,filename,path}]."""
+def _new_job(recipe_id: str, saved_inputs: List[Dict[str, str]], instruction: str) -> Dict[str, Any]:
+    """검증 후 'running' 작업 레코드 생성. 검증 실패 시 ValueError."""
     recipe = recipes.get(recipe_id)
     if not recipe:
         raise ValueError(f"레시피를 찾을 수 없습니다: {recipe_id}")
-
-    # 필수 입력 검증
     provided = {i["key"] for i in saved_inputs}
     missing = [i["label"] for i in recipe["inputs"]
                if i["required"] and i["key"] not in provided]
     if missing and not instruction.strip():
         raise ValueError("필수 입력이 비었습니다: " + ", ".join(missing))
-
     job_id = uuid.uuid4().hex
     job = {
         "id": job_id, "recipe_id": recipe_id, "recipe_name": recipe["name"],
@@ -156,9 +152,13 @@ def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
     }
     with _LOCK:
         _JOBS[job_id] = job
+    return job
 
+
+def _run_create(job: Dict[str, Any], saved_inputs: List[Dict[str, str]], instruction: str) -> None:
+    """무거운 생성 작업(추출→프롬프트→LLM→렌더). job 상태를 in-place 갱신."""
+    recipe = recipes.get(job["recipe_id"])
     try:
-        # 입력 추출
         input_texts = []
         for it in saved_inputs:
             text = extractors.extract(it["path"])
@@ -169,7 +169,7 @@ def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
         content = _generate_content(recipe, prompt)
         job["content"] = content
 
-        result = _render_outputs(recipe, content, job_id)
+        result = _render_outputs(recipe, content, job["id"])
         job.update(status="done", files=result["files"],
                    preview=result["preview"], warnings=result["warnings"])
         if instruction.strip():
@@ -179,11 +179,27 @@ def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
         job.update(status="error", error=str(e))
     except Exception as e:
         job.update(status="error", error=f"{type(e).__name__}: {e}")
+
+
+def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
+               instruction: str = "") -> Dict[str, Any]:
+    """동기 실행(생성). saved_inputs: [{key,label,filename,path}]."""
+    job = _new_job(recipe_id, saved_inputs, instruction)
+    _run_create(job, saved_inputs, instruction)
     return public_view(job)
 
 
-def refine_job(job_id: str, instruction: str) -> Dict[str, Any]:
-    """생성된 초안을 채팅 지시로 수정 → 재렌더."""
+def start_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
+              instruction: str = "") -> Dict[str, Any]:
+    """비동기 생성: 'running' 작업을 즉시 반환하고 백그라운드 스레드에서 생성.
+    프론트는 GET /jobs/{id} 를 폴링한다(긴 agy 호출이 HTTP 타임아웃에 안 걸리게)."""
+    job = _new_job(recipe_id, saved_inputs, instruction)
+    threading.Thread(target=_run_create, args=(job, saved_inputs, instruction),
+                     daemon=True, name="studio-create").start()
+    return public_view(job)
+
+
+def _prep_refine(job_id: str, instruction: str):
     with _LOCK:
         job = _JOBS.get(job_id)
     if not job:
@@ -191,15 +207,17 @@ def refine_job(job_id: str, instruction: str) -> Dict[str, Any]:
     recipe = recipes.get(job["recipe_id"])
     if not recipe:
         raise ValueError("레시피를 찾을 수 없습니다.")
-
     job["status"] = "running"
+    job["error"] = None
     job["chat"].append({"role": "user", "text": instruction})
+    return job, recipe
+
+
+def _run_refine(job: Dict[str, Any], recipe: Dict[str, Any], instruction: str) -> None:
     try:
-        # 참고 자료(입력 텍스트 일부)
         ctx = ""
         for it in job.get("_input_texts", [])[:3]:
             ctx += f"[{it['label']}]\n{it['text'][:4000]}\n\n"
-
         model = recipe.get("model") or config.DEFAULT_MODEL
         mode = recipe["output"]["mode"]
         if mode in ("slides", "table"):
@@ -207,8 +225,7 @@ def refine_job(job_id: str, instruction: str) -> Dict[str, Any]:
         else:
             new_content = llm.refine_text(job["content"], instruction, model=model, context=ctx)
         job["content"] = new_content
-
-        result = _render_outputs(recipe, new_content, job_id)
+        result = _render_outputs(recipe, new_content, job["id"])
         job.update(status="done", files=result["files"],
                    preview=result["preview"], warnings=result["warnings"])
         job["chat"].append({"role": "assistant", "text": "수정 반영했습니다."})
@@ -216,6 +233,20 @@ def refine_job(job_id: str, instruction: str) -> Dict[str, Any]:
         job.update(status="error", error=str(e))
     except Exception as e:
         job.update(status="error", error=f"{type(e).__name__}: {e}")
+
+
+def refine_job(job_id: str, instruction: str) -> Dict[str, Any]:
+    """생성된 초안을 채팅 지시로 수정 → 재렌더 (동기)."""
+    job, recipe = _prep_refine(job_id, instruction)
+    _run_refine(job, recipe, instruction)
+    return public_view(job)
+
+
+def start_refine(job_id: str, instruction: str) -> Dict[str, Any]:
+    """비동기 refine: 'running' 즉시 반환 + 백그라운드 처리. 프론트는 폴링."""
+    job, recipe = _prep_refine(job_id, instruction)
+    threading.Thread(target=_run_refine, args=(job, recipe, instruction),
+                     daemon=True, name="studio-refine").start()
     return public_view(job)
 
 
