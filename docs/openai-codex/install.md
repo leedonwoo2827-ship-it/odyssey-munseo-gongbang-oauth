@@ -43,6 +43,6 @@ codex logout   # 자격증명 삭제 → 다시 codex login 으로 다른 계정
 
 ## 앱과의 연동(요약)
 - 로그인 판정: `codex login status` exit 코드.
-- 문서 생성: `codex exec "<프롬프트>" -m <model> -s read-only -a never` → stdout 캡처.
+- 문서 생성: 프롬프트를 **stdin** 으로 넣어 `codex exec --skip-git-repo-check -s read-only -m <model> -o <파일>` → 최종 메시지 캡처.
 - 모델 목록: `codex debug models`(JSON). 앱이 파싱해 [⚙ 연결 상태] 드롭다운에 표시(현재 gpt-5.5/5.4/5.4-mini).
 - 대량 사용은 **ChatGPT Plus/Pro** 등 상위 구독 권장(등급별 할당량 상이). 비용 비교 → [비용표](../antigravity/비용_할당량_비교.md)

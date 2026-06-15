@@ -193,42 +193,44 @@ class CodexClient:
             )
         sel = (model or "").strip() or get_model()
         model_opt = (["-m", sel] if sel else [])
-        # 최종 메시지를 파일로도 받기(stdout 캡처 보강)
+        # 최종 메시지를 파일로 받는다(-o, 가장 깔끔). stdout 은 폴백.
         out_path = None
         try:
             fd, out_path = tempfile.mkstemp(prefix="codex_out_", suffix=".txt")
             os.close(fd)
         except Exception:
             out_path = None
-        cmd = [path, "exec", prompt, "-s", "read-only", "-a", "never", *model_opt]
+        # 프롬프트는 **stdin** 으로 전달한다. 위치 인자로 주면 Windows 명령행 길이 제한
+        # (~32KB)에 걸려 긴 프롬프트(첨부 다수)가 잘려 codex 가 빈 입력으로 되묻는다.
+        # 위치 인자를 생략하면 codex 가 stdin 에서 지시를 읽는다.
+        # (-a/approval 플래그는 이 버전에 없음. read-only 샌드박스로 파일변경 차단.)
+        cmd = [path, "exec", "--skip-git-repo-check", "-s", "read-only", *model_opt]
         if out_path:
             cmd += ["-o", out_path]
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True,
+            proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
                                   encoding="utf-8", errors="replace",
                                   timeout=self.timeout + 30)
         except FileNotFoundError as e:
             raise CodexNotInstalled(f"codex 실행 실패: {e}") from e
         except subprocess.TimeoutExpired as e:
             raise CodexError(f"codex 응답 시간 초과({self.timeout}s).") from e
-        finally:
-            pass
 
-        text = (proc.stdout or "").strip()
-        if not text and out_path:
+        # 최종 메시지: -o 파일 우선(진행상황/토큰 트레일러 없이 답만), 없으면 stdout.
+        text = ""
+        if out_path:
             try:
                 with open(out_path, "r", encoding="utf-8", errors="replace") as f:
                     text = f.read().strip()
             except Exception:
-                pass
-        if out_path:
+                text = ""
             try:
                 os.remove(out_path)
             except Exception:
                 pass
+        if not text:
+            text = (proc.stdout or "").strip()
 
-        if proc.returncode != 0 and not text:
-            raise _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
         if not text:
             raise _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
         return text
