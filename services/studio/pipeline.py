@@ -79,7 +79,10 @@ def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
 
 
 def _generate_content(recipe: Dict[str, Any], prompt: str) -> Any:
-    model = recipe.get("model") or config.DEFAULT_MODEL
+    # 모델은 레시피가 명시한 경우만 전달(대부분 미지정 → None). 공급자 무관 기본값
+    # (gemini-3-pro)을 강제하지 않는다 — codex 에 gemini 모델을 넘기면 실패한다.
+    # 최종 모델 선택은 llm.chat 이 활성 공급자의 선택값(get_model)으로 결정한다.
+    model = recipe.get("model")
     mode = recipe["output"]["mode"]
     if mode in ("slides", "table"):
         return llm.generate_json(prompt, model=model, max_tokens=6000)
@@ -218,7 +221,7 @@ def _run_refine(job: Dict[str, Any], recipe: Dict[str, Any], instruction: str) -
         ctx = ""
         for it in job.get("_input_texts", [])[:3]:
             ctx += f"[{it['label']}]\n{it['text'][:4000]}\n\n"
-        model = recipe.get("model") or config.DEFAULT_MODEL
+        model = recipe.get("model")  # 미지정이면 활성 공급자의 선택 모델 사용(llm.chat)
         mode = recipe["output"]["mode"]
         if mode in ("slides", "table"):
             new_content = llm.refine_json(job["content"], instruction, model=model, context=ctx)

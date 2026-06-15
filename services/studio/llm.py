@@ -40,10 +40,10 @@ def chat(messages: List[Dict[str, str]], model: Optional[str] = None,
     from services.llm_errors import LLMNotInstalled, LLMNotAuthenticated
     from services import llm_backend
     client = _get_client()
-    # 모델 미지정 시 **활성 공급자의 선택 모델**을 사용한다(agy_model.json / codex_model.json).
-    # 비면 빈 값 → 각 CLI 가 자체 기본 모델을 쓴다. (공급자 무관 기본값 gemini-3-pro 강제 금지:
-    #  codex 에 gemini 모델을 넘기면 exit 1 로 실패한다.)
-    sel = (model or "").strip() or llm_backend.get_model()
+    # **활성 공급자의 선택 모델(UI)** 이 최우선. 화면 토글로 고른 모델이 레시피/호출자 인자보다
+    # 우선해야 codex 에 gemini 모델이 새어들어가지 않는다. 둘 다 비면 CLI 자체 기본 모델.
+    # (agy 는 원래 runner 가 자기 get_model 을 쓰므로 이 우선순위와 일관.)
+    sel = llm_backend.get_model() or (model or "").strip()
     try:
         resp = client.chat(sel or None, messages, max_tokens=max_tokens)
     except (LLMNotInstalled, LLMNotAuthenticated) as e:
