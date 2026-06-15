@@ -49,9 +49,10 @@ async function checkHealth() {
     const r = await fetch(`${API}/settings`);
     const s = await r.json();
     if (s.authenticated) {
-      chip.textContent = "● " + (s.label || "LLM") + " 연결됨";
+      const m = s.selected_model ? " · " + s.selected_model : "";
+      chip.textContent = "● " + (s.label || "LLM") + m + " 연결됨";
       chip.className = "status ok";
-      chip.title = s.email || "";
+      chip.title = (s.email || "") + (s.selected_model ? "\n모델: " + s.selected_model : "");
       return true;
     }
     chip.textContent = s.installed ? "● 로그인 필요 — 클릭" : "● CLI 미설치 — 클릭";

@@ -38,9 +38,14 @@ def chat(messages: List[Dict[str, str]], model: Optional[str] = None,
          max_tokens: int = 4000) -> str:
     """messages(OpenAI 형식) → 응답 텍스트."""
     from services.llm_errors import LLMNotInstalled, LLMNotAuthenticated
+    from services import llm_backend
     client = _get_client()
+    # 모델 미지정 시 **활성 공급자의 선택 모델**을 사용한다(agy_model.json / codex_model.json).
+    # 비면 빈 값 → 각 CLI 가 자체 기본 모델을 쓴다. (공급자 무관 기본값 gemini-3-pro 강제 금지:
+    #  codex 에 gemini 모델을 넘기면 exit 1 로 실패한다.)
+    sel = (model or "").strip() or llm_backend.get_model()
     try:
-        resp = client.chat(model or config.DEFAULT_MODEL, messages, max_tokens=max_tokens)
+        resp = client.chat(sel or None, messages, max_tokens=max_tokens)
     except (LLMNotInstalled, LLMNotAuthenticated) as e:
         # 설정 성격의 오류는 LLMConfigError 로 변환해 파이프라인이 안내문으로 표시
         raise LLMConfigError(str(e)) from e
