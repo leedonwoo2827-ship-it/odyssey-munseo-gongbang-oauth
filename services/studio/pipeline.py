@@ -255,16 +255,26 @@ def _run_create(job: Dict[str, Any], saved_inputs: List[Dict[str, str]], instruc
         brief = job.get("research_brief", "") or ""
         evidence_ctx = ""
         style_ctx = ""
-        if brief or job.get("evidence_indexed"):
+        # 데이터 근거는 학습/브리프가 있을 때만(입력 전문은 이미 {{inputs}}에 들어감).
+        # 문체 앵커(지난 산출물)는 첨부돼 있으면 '항상' 반영한다 — 5단계를 안 거쳐도.
+        need_data = bool(brief or job.get("evidence_indexed"))
+        need_style = bool(job.get("style_inputs"))
+        if need_data or need_style:
             from . import enrich, evidence as ev
-            if not ev.load_chunks(job["id"]):
-                _build_evidence_index(job)
-            sources = [t["filename"] for t in input_texts]
-            qs = enrich.auto_queries(recipe["name"], instruction, sources)
-            evidence_ctx = enrich.gather_context(job["id"], qs, k=6, max_chars=16000, role="data")
-            style_ctx = enrich.gather_context(
-                job["id"], enrich.auto_queries(recipe["name"], "", []),
-                k=3, max_chars=4000, role="style")
+            try:
+                if not ev.load_chunks(job["id"]):
+                    _build_evidence_index(job)
+                if need_data:
+                    qs = enrich.auto_queries(recipe["name"], instruction,
+                                             [t["filename"] for t in input_texts])
+                    evidence_ctx = enrich.gather_context(job["id"], qs, k=6,
+                                                         max_chars=16000, role="data")
+                if need_style:
+                    style_ctx = enrich.gather_context(
+                        job["id"], enrich.auto_queries(recipe["name"], "", []),
+                        k=4, max_chars=5000, role="style")
+            except Exception:
+                pass  # 근거 조립 실패해도 기본 생성은 진행
 
         prompt = _build_prompt(recipe, input_texts, instruction,
                                brief=brief, evidence_ctx=evidence_ctx, style_ctx=style_ctx)
