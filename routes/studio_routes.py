@@ -27,6 +27,7 @@ def setup_studio_routes():
         out = [{
             "id": r["id"], "name": r["name"], "category": r["category"],
             "description": r["description"], "format": r["output"]["format"],
+            "workflow": r.get("workflow", "simple"),
             "inputs": r["inputs"],
         } for r in items]
         return {"recipes": out, "count": len(out)}
@@ -65,25 +66,46 @@ def setup_studio_routes():
         updir = os.path.join(config.UPLOADS_DIR, token)
         os.makedirs(updir, exist_ok=True)
 
+        defer = (form.get("defer_generate") or "").strip() == "1"
         valid_keys = {i["key"]: i for i in recipe["inputs"]}
         saved = []
+        style = []
         for field, value in form.multi_items():
-            if field in ("recipe_id", "instruction"):
+            if field in ("recipe_id", "instruction", "defer_generate"):
                 continue
             filename = getattr(value, "filename", None)
             if not filename:
                 continue  # 일반 텍스트 필드는 무시
             safe = os.path.basename(filename).replace("\\", "_")
+            # 경로 길이(Windows 260자) 초과 방지: 파일명 본체를 제한하고 확장자는 보존.
+            stem_, ext_ = os.path.splitext(safe)
+            if len(stem_) > 60:
+                stem_ = stem_[:60].rstrip(" ._-")
+            safe = (stem_ + ext_) or "input"
             dest = os.path.join(updir, f"{field}__{safe}")
-            with open(dest, "wb") as f:
-                f.write(await value.read())
-            meta = valid_keys.get(field, {"label": field})
-            saved.append({"key": field, "label": meta.get("label", field),
-                          "filename": safe, "path": dest})
+            try:
+                with open(dest, "wb") as f:
+                    f.write(await value.read())
+            except OSError as e:
+                raise HTTPException(
+                    400,
+                    f"입력 파일을 저장하지 못했습니다(파일명이 너무 길거나 경로 문제일 수 있습니다): "
+                    f"{safe} — {type(e).__name__}",
+                )
+            if field == "__style__":
+                # 지난 산출물(문체·품질 앵커) — 데이터가 아니라 톤/구성 참고용
+                style.append({"key": "__style__", "label": "지난 산출물",
+                              "filename": safe, "path": dest, "role": "style"})
+            else:
+                meta = valid_keys.get(field, {"label": field})
+                saved.append({"key": field, "label": meta.get("label", field),
+                              "filename": safe, "path": dest, "role": "data"})
 
         try:
             # 비동기: 'running' 즉시 반환 → 프론트가 GET /jobs/{id} 폴링(긴 agy 호출 타임아웃 회피)
-            result = pipeline.start_job(recipe_id, saved, instruction)
+            # defer=1 이면 생성하지 않고 'ready' 작업만 만든다(근거 기반 5단계 진행용).
+            result = pipeline.start_job(recipe_id, saved, instruction,
+                                        style_inputs=style, defer=defer)
         except ValueError as e:
             raise HTTPException(400, str(e))
         return result
@@ -105,6 +127,61 @@ def setup_studio_routes():
             return pipeline.start_refine(job_id, instruction)
         except ValueError as e:
             raise HTTPException(404, str(e))
+
+    # ── 근거 기반 5단계 (자료학습 → 딥리서치 → 생성 → 검수 → 검수반영) ──────
+    @router.post("/jobs/{job_id}/learn")
+    async def learn_job(job_id: str):
+        """① 자료학습 — 입력/지난 산출물을 추출·색인(비동기)."""
+        try:
+            return pipeline.start_learn(job_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @router.post("/jobs/{job_id}/research")
+    async def research_job(job_id: str, request: Request):
+        """② 딥리서치 — 자료 심층분석 → 리서치 브리프(비동기)."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        topic = (body.get("topic") or "").strip()
+        try:
+            return pipeline.start_research(job_id, topic)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @router.put("/jobs/{job_id}/brief")
+    async def set_brief_job(job_id: str, request: Request):
+        """편집된 리서치 브리프 저장(③ 생성이 이 브리프를 따른다)."""
+        body = await request.json()
+        try:
+            return pipeline.set_brief(job_id, (body.get("brief") or ""))
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+
+    @router.post("/jobs/{job_id}/generate")
+    async def generate_job(job_id: str):
+        """③ 문서 생성 — 브리프+근거를 주입해 생성(비동기)."""
+        try:
+            return pipeline.start_generate(job_id)
+        except ValueError as e:
+            raise HTTPException(404, str(e))
+
+    @router.post("/jobs/{job_id}/review")
+    async def review_job(job_id: str):
+        """④ 자동 검수 — 생성물을 근거와 대조(비동기)."""
+        try:
+            return pipeline.start_review(job_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @router.post("/jobs/{job_id}/revise")
+    async def revise_job(job_id: str):
+        """⑤ 검수 반영 — 검수 결과를 반영해 문서 수정(비동기)."""
+        try:
+            return pipeline.start_revise(job_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
     @router.get("/jobs/{job_id}/download/{filename}")
     async def download(job_id: str, filename: str):

@@ -127,8 +127,13 @@ def logout() -> bool:
 
 
 def login_terminal_cmd() -> List[str]:
-    """로그인용 터미널 명령(브라우저 OAuth)."""
-    return [CODEX_BIN, "login"]
+    """로그인용 터미널 명령(브라우저 OAuth).
+
+    PATH 에 codex 가 없어도(예: npm 전역 bin 이 PATH 에 빠진 PC) 새 cmd 창이 codex 를
+    찾을 수 있도록, 탐지된 실제 경로(codex_path)가 있으면 그 절대경로를 쓴다.
+    없으면 맨이름(CODEX_BIN)으로 폴백한다.
+    """
+    return [codex_path() or CODEX_BIN, "login"]
 
 
 def status() -> dict:

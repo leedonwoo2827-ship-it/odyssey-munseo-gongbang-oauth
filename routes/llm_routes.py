@@ -32,8 +32,12 @@ def _launch_terminal(argv):
     import subprocess
     import sys
     if sys.platform == "win32":
-        # 새 콘솔에서 argv 실행 후 창 유지(/k)
-        subprocess.Popen(["cmd", "/c", "start", "", "cmd", "/k", *argv], close_fds=True)
+        # 새 콘솔에서 argv 실행 후 창 유지(/k). 경로에 공백이 있어도 안전하도록
+        # list2cmdline 로 따옴표 처리한 뒤 `cmd /s /k "<...>"` 로 감싼다.
+        # (/s = 명령행 양끝 따옴표만 제거하고 내부는 그대로 → "C:\경로 공백\codex.cmd"
+        #  login 이 올바르게 실행된다.)
+        inner = subprocess.list2cmdline(list(argv))
+        subprocess.Popen(f'start "" cmd /s /k "{inner}"', shell=True, close_fds=True)
         return "windows-cmd"
     if sys.platform == "darwin":
         joined = " ".join(argv)
@@ -90,6 +94,18 @@ def setup_llm_routes() -> APIRouter:
         if not _loopback(request):
             return JSONResponse(status_code=403, content={"ok": False, "message": "로컬에서만 가능합니다."})
         from services import llm_backend
+        # 미설치 상태에서 터미널을 열면 'codex/agy 를 찾을 수 없음' 으로 곧장 실패한다.
+        # 먼저 설치 여부를 확인해 명확히 안내한다.
+        prov = llm_backend.get_provider()
+        if not llm_backend.active_auth().is_installed():
+            if prov == "codex":
+                name, doc = "OpenAI Codex CLI(codex)", "docs/openai-codex/install.md"
+            else:
+                name, doc = "Antigravity CLI(agy)", "docs/antigravity/install.md"
+            return JSONResponse(status_code=400, content={
+                "ok": False,
+                "message": f"{name} 가 설치되어 있지 않습니다. setup.bat 을 다시 실행하거나 "
+                           f"{doc} 를 참고해 설치한 뒤 [상태 새로고침] 하세요."})
         cmd = llm_backend.login_cmd()
         try:
             method = _launch_terminal(cmd)

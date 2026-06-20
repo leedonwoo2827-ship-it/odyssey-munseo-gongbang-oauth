@@ -127,6 +127,36 @@ textarea,.chat-input input{width:100%;border:1px solid var(--line);border-radius
 .preview th,.preview td{border:1px solid var(--line);padding:6px 9px;font-size:13px}
 .preview th{background:var(--accent-weak)}
 
+/* 지난 산출물(문체 앵커) 슬롯 */
+.style-slot{border:1.5px dashed var(--line);border-radius:11px;padding:12px 14px;margin-top:10px}
+.style-slot .s-label{font-weight:600;font-size:13px}
+.style-slot .s-accept{font-size:11px;color:var(--muted);margin-top:2px}
+.style-slot input[type=file]{margin-top:8px;font-size:12px;width:100%}
+.style-slot .s-file{font-size:12px;color:var(--ok);margin-top:6px;display:none;word-break:break-all}
+
+/* 근거 기반 5단계 */
+.guided{margin-top:18px;border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(180deg,var(--accent-weak),#fff);padding:14px 16px}
+.guided-head{display:flex;justify-content:space-between;align-items:center}
+.guided-title{font-size:14px;font-weight:700;color:var(--accent)}
+.guided-toggle{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
+.steps{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px;padding:0}
+.steps li{flex:1;min-width:88px;text-align:center;font-size:12px;font-weight:600;color:var(--muted);
+  background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 6px}
+.steps li .sx{color:var(--accent);font-weight:700}
+.steps li .st{margin-left:3px;color:var(--ok)}
+.guided-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.guided-actions .btn{padding:8px 13px;font-size:13px}
+.guided-msg{font-size:12px;color:var(--muted)}
+.brief-wrap,.review-wrap{margin-top:12px}
+.brief-label{display:block;font-size:13px;font-weight:600;margin-bottom:5px}
+.brief-label .opt{font-weight:400;color:var(--muted);font-size:11px}
+#brief-box{min-height:140px;background:#fff;font-family:"맑은 고딕","Malgun Gothic",monospace;font-size:12.5px;line-height:1.6}
+.review-box{background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px 16px;
+  font-size:13px;line-height:1.7;max-height:360px;overflow:auto}
+.review-box h1,.review-box h2,.review-box h3{font-size:14px;margin:10px 0 4px}
+.review-box ul{margin:4px 0;padding-left:18px}
+
 /* 채팅 */
 .chat{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .msg{padding:8px 12px;border-radius:11px;font-size:13px;max-width:80%}

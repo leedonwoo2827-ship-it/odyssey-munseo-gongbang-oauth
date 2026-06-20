@@ -26,6 +26,8 @@ DEFAULT_TEMPLATES = {
 STUDIO_DATA = os.path.join(DATA_DIR, "studio")
 OUTPUTS_DIR = os.path.join(STUDIO_DATA, "outputs")
 UPLOADS_DIR = os.path.join(STUDIO_DATA, "uploads")
+# 근거 기반 워크플로(자료학습/검수)용 잡별 근거 청크 저장 위치
+EVIDENCE_DIR = os.path.join(STUDIO_DATA, "evidence")
 
 # ── LLM 백엔드 ───────────────────────────────────────────────────────
 # 구글 공식 Antigravity CLI(`agy`)로 호출한다. API 키/URL 설정이 없다(인증·할당량은
@@ -42,7 +44,7 @@ MAX_CHARS_PER_INPUT = int(os.environ.get("STUDIO_MAX_CHARS_PER_INPUT", "40000"))
 
 def ensure_dirs() -> None:
     """런타임 디렉터리 생성 (모듈 로드 시/생성 직전 호출)."""
-    for d in (RECIPES_DIR, ASSETS_DIR, STUDIO_DATA, OUTPUTS_DIR, UPLOADS_DIR):
+    for d in (RECIPES_DIR, ASSETS_DIR, STUDIO_DATA, OUTPUTS_DIR, UPLOADS_DIR, EVIDENCE_DIR):
         os.makedirs(d, exist_ok=True)
 
 

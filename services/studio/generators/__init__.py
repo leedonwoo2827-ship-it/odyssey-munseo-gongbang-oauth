@@ -14,7 +14,8 @@ from typing import Any, Optional
 from . import md_gen, docx_gen, hwpx_gen, pptx_gen, xlsx_gen
 
 
-def render(fmt: str, payload: Any, out_path: str, template: Optional[str] = None) -> str:
+def render(fmt: str, payload: Any, out_path: str, template: Optional[str] = None,
+           mode: Optional[str] = None) -> str:
     fmt = (fmt or "md").lower()
     if fmt == "md":
         return md_gen.render(payload, out_path)
@@ -23,6 +24,10 @@ def render(fmt: str, payload: Any, out_path: str, template: Optional[str] = None
     if fmt == "hwpx":
         return hwpx_gen.render(payload, out_path, template=template)
     if fmt == "pptx":
+        # McKinsey 덱 모드 → 템플릿 복제 + 네이티브 차트 렌더러
+        if (mode or "").lower() == "mckinsey_deck":
+            from . import mckinsey_pptx_gen
+            return mckinsey_pptx_gen.render(payload, out_path, template=template)
         return pptx_gen.render(payload, out_path, template=template)
     if fmt == "xlsx":
         return xlsx_gen.render(payload, out_path)

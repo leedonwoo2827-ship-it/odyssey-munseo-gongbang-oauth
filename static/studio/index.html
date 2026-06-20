@@ -94,9 +94,48 @@
         <h3 class="step">② 입력 문서</h3>
         <div id="inputs" class="inputs"></div>
 
+        <div class="style-slot">
+          <div class="s-label">🎨 지난 산출물 <span class="opt">(선택 · 문체·품질 참고)</span></div>
+          <div class="s-accept">과거 완성 문서를 넣으면 톤·구성·완성도를 맞춥니다. 데이터(수치·내용)는 위 입력에서만 가져옵니다.</div>
+          <input type="file" id="style-files" multiple />
+          <div id="style-list" class="s-file"></div>
+        </div>
+
         <h3 class="step">③ 추가 지시 / 메모 <span class="opt">(선택 · 채팅처럼)</span></h3>
         <textarea id="instruction" rows="3"
           placeholder="예) 10차 일정만 강조해줘 / 표는 빼고 서술형으로 / 공식적인 톤으로"></textarea>
+
+        <!-- 근거 기반 5단계 (보고서·발표자료·계획서류에서 자동 표시) -->
+        <div id="guided" class="guided" style="display:none">
+          <div class="guided-head">
+            <span class="guided-title">🧭 근거 기반 5단계</span>
+            <label class="guided-toggle"><input type="checkbox" id="guided-on" checked /> 단계별로 진행</label>
+          </div>
+          <ol id="step-strip" class="steps">
+            <li data-stage="learn"><span class="sx">①</span> 자료학습 <span class="st" id="st-learn"></span></li>
+            <li data-stage="research"><span class="sx">②</span> 딥리서치 <span class="st" id="st-research"></span></li>
+            <li data-stage="generate"><span class="sx">③</span> 생성 <span class="st" id="st-generate"></span></li>
+            <li data-stage="review"><span class="sx">④</span> 검수 <span class="st" id="st-review"></span></li>
+            <li data-stage="revise"><span class="sx">⑤</span> 검수반영 <span class="st" id="st-revise"></span></li>
+          </ol>
+          <div class="guided-actions">
+            <button id="s-learn" class="btn">① 자료학습</button>
+            <button id="s-research" class="btn">② 딥리서치(브리프)</button>
+            <button id="s-generate" class="btn primary">③ 문서 생성</button>
+            <button id="s-review" class="btn">④ 자동 검수</button>
+            <button id="s-revise" class="btn">⑤ 검수 반영</button>
+            <span id="guided-spinner" class="spinner" style="display:none"></span>
+            <span id="guided-msg" class="guided-msg"></span>
+          </div>
+          <div id="brief-wrap" class="brief-wrap" style="display:none">
+            <label class="brief-label">📋 리서치 브리프 <span class="opt">(편집 가능 · ③ 생성이 이 설계를 따름)</span></label>
+            <textarea id="brief-box" rows="8" placeholder="② 딥리서치를 누르면 자료 분석 브리프가 채워집니다."></textarea>
+          </div>
+          <div id="review-wrap" class="review-wrap" style="display:none">
+            <label class="brief-label">🔎 검수 결과 <span class="opt">(⑤ 검수 반영으로 문서에 적용)</span></label>
+            <div id="review-box" class="review-box"></div>
+          </div>
+        </div>
 
         <div class="actions">
           <button id="generate" class="btn primary">④ 생성하기</button>

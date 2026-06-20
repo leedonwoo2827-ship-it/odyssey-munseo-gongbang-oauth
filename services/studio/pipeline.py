@@ -33,14 +33,33 @@ def _date() -> str:
     return datetime.datetime.now().strftime("%Y%m%d")
 
 
-def _safe_name(name: str) -> str:
+def _safe_name(name: str, max_len: int = 80) -> str:
+    # 경로 구분 문자 제거 + 길이 제한(Windows 260자 경로 한계 방어 — 긴 한글 파일명 대비).
     name = re.sub(r"[\\/:*?\"<>|]+", "_", name).strip()
+    if len(name) > max_len:
+        name = name[:max_len].rstrip(" ._-")
     return name or "output"
 
 
+_GROUNDING_RULES = (
+    "\n\n[정확성·환각 방지 규칙 — 반드시 준수]\n"
+    "- 첨부 입력 자료에 실제로 있는 사실만 단정한다.\n"
+    "- 입력에 없거나 불확실한 정보(수치·일정·인명·기관명·금액·출처 등)는 임의로 지어내지 말고 '[확인 필요]'로 표시한다.\n"
+    "- 입력의 수치·고유명사·날짜는 표기 그대로 사용한다(임의 변환·반올림 금지).\n"
+    "- 입력이 부족하면 그럴듯하게 채우지 말고, 무엇이 빠졌는지 '[확인 필요: …]'로 남긴다.\n"
+    "- 첨부 입력이 전혀 없으면 일반적인 양식·목차만 제시하고 구체 내용은 모두 '[확인 필요]'로 둔다.\n"
+    "- 출처가 있는 수치·인용은 가능하면 출처를 함께 표기한다."
+)
+
+
 def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
-                  instruction: str) -> str:
-    """레시피 prompt 템플릿에 입력/지시 주입. {{inputs}}/{{instruction}} 치환."""
+                  instruction: str, *, brief: str = "", evidence_ctx: str = "",
+                  style_ctx: str = "") -> str:
+    """레시피 prompt 템플릿에 입력/지시 주입. {{inputs}}/{{instruction}} 치환.
+
+    근거 기반 워크플로가 켜져 있으면 brief(리서치 브리프)·evidence_ctx(데이터 근거)·
+    style_ctx(문체 앵커)를 추가로 주입한다. 모두 빈 값이면 기존 단발 경로와 동일.
+    """
     inputs_block = ""
     for it in input_texts:
         inputs_block += f"\n### [{it['label']}] ({it['filename']})\n{it['text']}\n"
@@ -61,8 +80,37 @@ def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
     elif instruction.strip():
         tmpl += "\n\n[추가 지시]\n" + instr_block
 
+    # 근거 기반 워크플로 주입(있을 때만). 데이터는 사실 근거, 문체 앵커는 톤/구성만 참고.
+    if brief.strip():
+        tmpl += "\n\n[리서치 브리프 — 이 설계를 따르라]\n" + brief
+    if evidence_ctx.strip():
+        tmpl += ("\n\n[데이터 근거 — 이 발췌만 사실 근거로 사용, 없는 내용은 지어내지 말 것]\n"
+                 + evidence_ctx)
+    if style_ctx.strip():
+        tmpl += ("\n\n[문체·품질 참고 — 지난 산출물. 톤·구성·완성도만 참고하고 사실 근거로 쓰지 말 것]\n"
+                 + style_ctx)
+
+    # 옵션 A(전역 환각 방지): 레시피 프롬프트가 약해도 항상 근거 규율을 강제한다.
+    # 포맷(JSON/Markdown) 지시는 이 뒤에 와서 마지막에 위치하도록 둔다.
+    tmpl += _GROUNDING_RULES
+
     mode = recipe["output"]["mode"]
-    if mode == "slides":
+    if mode == "mckinsey_deck":
+        tmpl += (
+            "\n\n출력 형식: JSON 만 출력(설명·코드펜스 금지). 아래 스키마를 따른다.\n"
+            '{"title":표지제목,"subtitle":부제,'
+            '"slides":[{"template":"A"|"B","chapter":"01  도입","title":결론문장,"subtitle":한줄부연,'
+            '"boxes":[{"header":박스헤더,"unit":"단위: %","kind":"column|bar|line|doughnut|table|kpi",'
+            '"categories":[...],"series":[{"name":계열명,"values":[수치...]}],'
+            '"labels":[...],"values":[...],'           # doughnut 용
+            '"headers":[...],"rows":[[...]],'           # table 용
+            '"kpis":[{"value":"34%","label":"라벨","desc":"한 줄"}],'  # kpi 용
+            '"number_format":"0","insight":한줄인사이트,"source":"Source: 기관, 보고서, 연도"}]}]}\n'
+            "규칙: 템플릿 A=박스1개(boxes 길이 1), B=박스2개(boxes 길이 2). "
+            "각 박스는 kind 에 맞는 데이터 필드만 채운다. 모든 슬라이드에 최소 1개 차트/표/KPI. "
+            "슬라이드 10장 이상. 수치엔 출처. 한국어."
+        )
+    elif mode == "slides":
         tmpl += (
             '\n\n출력 형식: JSON. {"title": 표지제목, "subtitle": 부제, '
             '"slides": [{"title": 슬라이드제목, "bullets": [불릿 3~5개]}]} 만 출력.'
@@ -84,8 +132,9 @@ def _generate_content(recipe: Dict[str, Any], prompt: str) -> Any:
     # 최종 모델 선택은 llm.chat 이 활성 공급자의 선택값(get_model)으로 결정한다.
     model = recipe.get("model")
     mode = recipe["output"]["mode"]
-    if mode in ("slides", "table"):
-        return llm.generate_json(prompt, model=model, max_tokens=6000)
+    if mode in ("slides", "table", "mckinsey_deck"):
+        max_tokens = 12000 if mode == "mckinsey_deck" else 6000
+        return llm.generate_json(prompt, model=model, max_tokens=max_tokens)
     return llm.generate_text(prompt, model=model, max_tokens=8000)
 
 
@@ -111,7 +160,8 @@ def _render_outputs(recipe: Dict[str, Any], content: Any, job_id: str) -> Dict[s
     if fmt != "md":
         main_path = os.path.join(out_dir, f"{stem}.{fmt}")
         try:
-            generators.render(fmt, content, main_path, template=template)
+            generators.render(fmt, content, main_path, template=template,
+                              mode=recipe["output"]["mode"])
             files.insert(0, {"format": fmt, "path": main_path,
                              "name": os.path.basename(main_path)})
         except hwpx_gen.HwpxUnavailable as e:
@@ -135,23 +185,50 @@ def _render_outputs(recipe: Dict[str, Any], content: Any, job_id: str) -> Dict[s
 
 
 # ── 공개 API ─────────────────────────────────────────────────────────
-def _new_job(recipe_id: str, saved_inputs: List[Dict[str, str]], instruction: str) -> Dict[str, Any]:
-    """검증 후 'running' 작업 레코드 생성. 검증 실패 시 ValueError."""
+def _get(job_id: str) -> Dict[str, Any]:
+    with _LOCK:
+        job = _JOBS.get(job_id)
+    if not job:
+        raise ValueError("작업을 찾을 수 없습니다(서버 재시작 시 초기화됩니다).")
+    return job
+
+
+def _collect_texts(items: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    for it in items:
+        text = extractors.extract(it["path"])
+        out.append({"label": it["label"], "filename": it["filename"],
+                    "text": text, "role": it.get("role", "data")})
+    return out
+
+
+def _new_job(recipe_id: str, saved_inputs: List[Dict[str, str]], instruction: str,
+             style_inputs: Optional[List[Dict[str, str]]] = None,
+             defer: bool = False) -> Dict[str, Any]:
+    """검증 후 작업 레코드 생성. 검증 실패 시 ValueError.
+
+    defer=True 면 즉시 생성하지 않고 'ready' 상태로 둔다(근거 기반 5단계 진행용).
+    """
     recipe = recipes.get(recipe_id)
     if not recipe:
         raise ValueError(f"레시피를 찾을 수 없습니다: {recipe_id}")
-    provided = {i["key"] for i in saved_inputs}
-    missing = [i["label"] for i in recipe["inputs"]
-               if i["required"] and i["key"] not in provided]
-    if missing and not instruction.strip():
-        raise ValueError("필수 입력이 비었습니다: " + ", ".join(missing))
+    if not defer:
+        provided = {i["key"] for i in saved_inputs}
+        missing = [i["label"] for i in recipe["inputs"]
+                   if i["required"] and i["key"] not in provided]
+        if missing and not instruction.strip():
+            raise ValueError("필수 입력이 비었습니다: " + ", ".join(missing))
     job_id = uuid.uuid4().hex
     job = {
         "id": job_id, "recipe_id": recipe_id, "recipe_name": recipe["name"],
-        "status": "running", "created": _now_stamp(),
+        "status": "ready" if defer else "running", "created": _now_stamp(),
         "instruction": instruction, "inputs": saved_inputs,
+        "style_inputs": style_inputs or [],
         "content": None, "files": [], "preview": "", "warnings": [],
         "chat": [], "error": None,
+        # 근거 기반 워크플로 상태
+        "stage_status": {}, "research_brief": "", "review_report": "",
+        "evidence_indexed": False,
     }
     with _LOCK:
         _JOBS[job_id] = job
@@ -159,16 +236,34 @@ def _new_job(recipe_id: str, saved_inputs: List[Dict[str, str]], instruction: st
 
 
 def _run_create(job: Dict[str, Any], saved_inputs: List[Dict[str, str]], instruction: str) -> None:
-    """무거운 생성 작업(추출→프롬프트→LLM→렌더). job 상태를 in-place 갱신."""
+    """무거운 생성 작업(추출→프롬프트→LLM→렌더). job 상태를 in-place 갱신.
+
+    근거가 학습돼 있거나 리서치 브리프가 있으면 데이터/문체 근거를 함께 주입한다.
+    아무것도 없으면 기존 단발 경로와 동일.
+    """
     recipe = recipes.get(job["recipe_id"])
     try:
-        input_texts = []
-        for it in saved_inputs:
-            text = extractors.extract(it["path"])
-            input_texts.append({"label": it["label"], "filename": it["filename"], "text": text})
-        job["_input_texts"] = input_texts
+        input_texts = job.get("_input_texts")
+        if input_texts is None:
+            input_texts = _collect_texts(saved_inputs)
+            job["_input_texts"] = input_texts
 
-        prompt = _build_prompt(recipe, input_texts, instruction)
+        brief = job.get("research_brief", "") or ""
+        evidence_ctx = ""
+        style_ctx = ""
+        if brief or job.get("evidence_indexed"):
+            from . import enrich, evidence as ev
+            if not ev.load_chunks(job["id"]):
+                _build_evidence_index(job)
+            sources = [t["filename"] for t in input_texts]
+            qs = enrich.auto_queries(recipe["name"], instruction, sources)
+            evidence_ctx = enrich.gather_context(job["id"], qs, k=6, max_chars=16000, role="data")
+            style_ctx = enrich.gather_context(
+                job["id"], enrich.auto_queries(recipe["name"], "", []),
+                k=3, max_chars=4000, role="style")
+
+        prompt = _build_prompt(recipe, input_texts, instruction,
+                               brief=brief, evidence_ctx=evidence_ctx, style_ctx=style_ctx)
         content = _generate_content(recipe, prompt)
         job["content"] = content
 
@@ -193,13 +288,174 @@ def create_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
 
 
 def start_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
-              instruction: str = "") -> Dict[str, Any]:
+              instruction: str = "",
+              style_inputs: Optional[List[Dict[str, str]]] = None,
+              defer: bool = False) -> Dict[str, Any]:
     """비동기 생성: 'running' 작업을 즉시 반환하고 백그라운드 스레드에서 생성.
-    프론트는 GET /jobs/{id} 를 폴링한다(긴 agy 호출이 HTTP 타임아웃에 안 걸리게)."""
-    job = _new_job(recipe_id, saved_inputs, instruction)
+    프론트는 GET /jobs/{id} 를 폴링한다(긴 agy 호출이 HTTP 타임아웃에 안 걸리게).
+
+    defer=True 면 생성하지 않고 'ready' 작업만 만든다(근거 기반 5단계 진행용)."""
+    job = _new_job(recipe_id, saved_inputs, instruction, style_inputs, defer)
+    if defer:
+        return public_view(job)
     threading.Thread(target=_run_create, args=(job, saved_inputs, instruction),
                      daemon=True, name="studio-create").start()
     return public_view(job)
+
+
+# ── 근거 기반 5단계 (자료학습 → 딥리서치 → 생성 → 검수 → 검수반영) ──────
+def _build_evidence_index(job: Dict[str, Any]) -> Dict[str, Any]:
+    """job 의 입력(데이터)+지난 산출물(문체)을 추출·청킹해 근거 색인 저장."""
+    from . import evidence as ev
+    data_texts = job.get("_input_texts")
+    if data_texts is None:
+        data_texts = _collect_texts(job.get("inputs", []))
+        job["_input_texts"] = data_texts
+    style_texts = job.get("_style_texts")
+    if style_texts is None:
+        style_texts = _collect_texts(job.get("style_inputs", []))
+        job["_style_texts"] = style_texts
+
+    sources: List[tuple] = [(t["filename"], t["text"], "data")
+                            for t in data_texts if (t["text"] or "").strip()]
+    sources += [(t["filename"], t["text"], "style")
+                for t in style_texts if (t["text"] or "").strip()]
+    if not sources:
+        raise ValueError("학습할 입력 자료가 없습니다. 먼저 파일을 첨부하세요.")
+    stat = ev.build_index(job["id"], sources)
+    job["evidence_indexed"] = True
+    return stat
+
+
+def _run_stage(job: Dict[str, Any], stage: str, fn, final_status: str) -> None:
+    """단계 작업을 공통 처리(상태/오류). fn 은 무인자 콜러블."""
+    job["status"] = "running"
+    job["error"] = None
+    job["stage_status"][stage] = "running"
+    try:
+        fn()
+        job["stage_status"][stage] = "done"
+        job["status"] = final_status
+    except llm.LLMConfigError as e:
+        job["stage_status"][stage] = "error"
+        job.update(status="error", error=str(e))
+    except Exception as e:
+        job["stage_status"][stage] = "error"
+        job.update(status="error", error=f"{type(e).__name__}: {e}")
+
+
+def _spawn(job: Dict[str, Any], stage: str, fn, final_status: str) -> Dict[str, Any]:
+    job["status"] = "running"
+    job["error"] = None
+    job["stage_status"][stage] = "running"
+    threading.Thread(target=_run_stage, args=(job, stage, fn, final_status),
+                     daemon=True, name=f"studio-{stage}").start()
+    return public_view(job)
+
+
+def start_learn(job_id: str) -> Dict[str, Any]:
+    """① 자료학습 — 입력/지난 산출물 추출·색인(비동기)."""
+    job = _get(job_id)
+    return _spawn(job, "learn", lambda: _build_evidence_index(job), "ready")
+
+
+def start_research(job_id: str, topic: str = "") -> Dict[str, Any]:
+    """② 딥리서치 — 자료 심층분석 → 리서치 브리프(비동기)."""
+    job = _get(job_id)
+
+    def _do():
+        from . import enrich, evidence as ev
+        if not ev.load_chunks(job["id"]):
+            _build_evidence_index(job)
+        recipe = recipes.get(job["recipe_id"])
+        t = (topic or "").strip() or recipe["name"]
+        qs = enrich.auto_queries(recipe["name"], job.get("instruction", ""),
+                                 [i["filename"] for i in job.get("inputs", [])])
+        ctx = enrich.gather_context(job["id"], qs, k=6, max_chars=18000, role="data")
+        model = recipe.get("model")
+        job["research_brief"] = llm.generate_text(
+            enrich.build_research_prompt(t, ctx), model=model, max_tokens=4000)
+
+    return _spawn(job, "research", _do, "ready")
+
+
+def set_brief(job_id: str, brief: str) -> Dict[str, Any]:
+    """편집된 리서치 브리프 저장(③ 생성이 이 브리프를 따른다)."""
+    job = _get(job_id)
+    job["research_brief"] = brief or ""
+    return public_view(job)
+
+
+def start_generate(job_id: str) -> Dict[str, Any]:
+    """③ 문서 생성 — 브리프+근거를 주입해 레시피 포맷으로 산출(비동기)."""
+    job = _get(job_id)
+
+    def _gen():
+        _run_create(job, job.get("inputs", []), job.get("instruction", ""))
+        if job["status"] == "error":
+            raise RuntimeError(job.get("error") or "생성 실패")
+
+    return _spawn(job, "generate", _gen, "done")
+
+
+def start_review(job_id: str) -> Dict[str, Any]:
+    """④ 자동 검수 — 생성물을 근거와 대조(비동기)."""
+    job = _get(job_id)
+
+    def _do():
+        if job.get("content") is None and not (job.get("preview") or "").strip():
+            raise ValueError("먼저 문서를 생성하세요.")
+        from . import enrich, evidence as ev
+        recipe = recipes.get(job["recipe_id"])
+        doc_md = job.get("preview", "") or md_gen.to_markdown(job.get("content"))
+        ctx = ""
+        if ev.load_chunks(job["id"]):
+            ctx = enrich.gather_context(job["id"], enrich.review_queries(doc_md),
+                                        k=8, max_chars=22000, role="data")
+        model = recipe.get("model")
+        job["review_report"] = llm.generate_text(
+            enrich.build_review_prompt(doc_md, ctx), model=model, max_tokens=4000)
+
+    return _spawn(job, "review", _do, "ready")
+
+
+def start_revise(job_id: str) -> Dict[str, Any]:
+    """⑤ 검수 반영 — 검수 결과를 반영해 문서 수정·재렌더(비동기)."""
+    job = _get(job_id)
+
+    def _do():
+        report = (job.get("review_report") or "").strip()
+        if not report:
+            raise ValueError("먼저 자동 검수를 실행하세요.")
+        if job.get("content") is None:
+            raise ValueError("먼저 문서를 생성하세요.")
+        from . import enrich, evidence as ev
+        recipe = recipes.get(job["recipe_id"])
+        mode = recipe["output"]["mode"]
+        model = recipe.get("model")
+        ctx = ""
+        if ev.load_chunks(job["id"]):
+            ctx = enrich.gather_context(job["id"],
+                                        enrich.review_queries(job.get("preview", "")),
+                                        k=6, max_chars=12000, role="data")
+        if mode in ("slides", "table", "mckinsey_deck"):
+            new_content = llm.refine_json(job["content"], report, model=model, context=ctx)
+        else:
+            cur = job["content"] if isinstance(job["content"], str) \
+                else md_gen.to_markdown(job["content"])
+            sections = enrich.doc_sections(cur)
+            parts = []
+            for sec in sections:
+                p = enrich.build_revise_prompt(sec, report, ctx)
+                parts.append(llm.generate_text(p, model=model, max_tokens=8000))
+            new_content = "\n\n".join(parts)
+        job["content"] = new_content
+        result = _render_outputs(recipe, new_content, job["id"])
+        job.update(files=result["files"], preview=result["preview"],
+                   warnings=result["warnings"])
+        job["chat"].append({"role": "assistant", "text": "검수 결과를 반영했습니다."})
+
+    return _spawn(job, "revise", _do, "done")
 
 
 def _prep_refine(job_id: str, instruction: str):
@@ -223,7 +479,7 @@ def _run_refine(job: Dict[str, Any], recipe: Dict[str, Any], instruction: str) -
             ctx += f"[{it['label']}]\n{it['text'][:4000]}\n\n"
         model = recipe.get("model")  # 미지정이면 활성 공급자의 선택 모델 사용(llm.chat)
         mode = recipe["output"]["mode"]
-        if mode in ("slides", "table"):
+        if mode in ("slides", "table", "mckinsey_deck"):
             new_content = llm.refine_json(job["content"], instruction, model=model, context=ctx)
         else:
             new_content = llm.refine_text(job["content"], instruction, model=model, context=ctx)
@@ -272,6 +528,12 @@ def find_file(job_id: str, filename: str) -> Optional[str]:
 
 def public_view(job: Dict[str, Any]) -> Dict[str, Any]:
     """프론트에 보낼 안전한 dict(내부 텍스트 캐시 제외)."""
+    from . import evidence as ev
+    if job.get("evidence_indexed"):
+        evd = ev.index_status(job["id"])
+    else:
+        evd = {"indexed": False, "chunks": 0, "sources": [],
+               "retriever": ev.get_retriever().name}
     return {
         "id": job["id"], "recipe_id": job["recipe_id"], "recipe_name": job["recipe_name"],
         "status": job["status"], "error": job.get("error"),
@@ -280,4 +542,9 @@ def public_view(job: Dict[str, Any]) -> Dict[str, Any]:
         "files": [{"format": f["format"], "name": f["name"]} for f in job.get("files", [])],
         "inputs": [{"key": i["key"], "label": i["label"], "filename": i["filename"]}
                    for i in job.get("inputs", [])],
+        # 근거 기반 워크플로 상태
+        "stage_status": job.get("stage_status", {}),
+        "research_brief": job.get("research_brief", ""),
+        "review_report": job.get("review_report", ""),
+        "evidence": evd,
     }

@@ -88,19 +88,32 @@ echo step:agy-done >> "%LOG%"
 
 REM 4b) OpenAI Codex CLI (optional, for OpenAI/ChatGPT provider) - best effort via npm
 echo       Checking OpenAI Codex CLI (codex) ...
+set "CODEX_NPM=%APPDATA%\npm\codex.cmd"
 where codex >nul 2>nul
 if errorlevel 1 (
   where npm >nul 2>nul
   if not errorlevel 1 (
-    echo       codex not found - trying npm i -g @openai/codex ^(needs internet^) ...
+    echo       codex not found on PATH - trying npm i -g @openai/codex ^(needs internet^) ...
     cmd /c npm i -g @openai/codex
   )
 )
-where codex >nul 2>nul
-if errorlevel 1 (
-  echo       [NOTE] codex not installed - OpenAI provider optional, see docs\openai-codex\install.md
+REM Detect codex on PATH first; if missing there, check the npm global bin
+REM ^(the app uses the same fallback, so it can find codex even without PATH^).
+set "CODEX_ON_PATH="
+where codex >nul 2>nul && set "CODEX_ON_PATH=1"
+if defined CODEX_ON_PATH (
+  echo       [OK] codex installed ^(on PATH^)
 ) else (
-  echo       [OK] codex installed
+  if exist "%CODEX_NPM%" (
+    echo       [OK] codex installed at "%CODEX_NPM%"
+    echo       [WARN] the npm global folder is NOT on your PATH:
+    echo                %APPDATA%\npm
+    echo              The app's [Login] button still works ^(it uses the full path^),
+    echo              but a plain `codex` typed in a new cmd window will fail.
+    echo              To fix permanently, add that folder to your PATH.
+  ) else (
+    echo       [NOTE] codex not installed - OpenAI provider optional, see docs\openai-codex\install.md
+  )
 )
 echo step:codex-done >> "%LOG%"
 

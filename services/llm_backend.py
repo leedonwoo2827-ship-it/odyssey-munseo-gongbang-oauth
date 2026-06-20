@@ -51,7 +51,8 @@ def _modules(name: str):
         return r, a, a.login_terminal_cmd()
     from services.agy import runner as r
     from services.agy import auth as a
-    return r, a, [os.environ.get("AGY_BIN", "agy")]  # agy 로그인 = `agy` 실행
+    # codex 와 동일하게, PATH 에 agy 가 없어도 열리도록 탐지된 절대경로 우선(폴백: 맨이름).
+    return r, a, [r.agy_path() or os.environ.get("AGY_BIN", "agy")]  # agy 로그인 = `agy` 실행
 
 
 def active_client():

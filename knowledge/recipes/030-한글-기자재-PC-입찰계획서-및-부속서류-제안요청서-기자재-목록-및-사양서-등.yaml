@@ -1,0 +1,28 @@
+id: 030-한글-기자재-PC-입찰계획서-및-부속서류-제안요청서-기자재-목록-및-사양서-등
+name: "기자재 PC 입찰계획서 및 부속서류 (제안요청서, 기자재 목록 및 사양서 등)"
+category: 기자재
+description: "기자재 PC 입찰계획서 및 부속서류 (제안요청서, 기자재 목록 및 사양서 등) 초안 생성 (입력 자료·지시 기반)."
+output:
+  format: hwpx
+  filename: 기자재-PC-입찰계획서-및-부속서류-제안요청서-기자재-목록-및-사양서-등_{date}
+inputs:
+- key: refA
+  label: "참고자료 1 (선택)"
+  required: false
+  accept: [docx, hwpx, pdf, xlsx, pptx, txt, md, csv]
+- key: refB
+  label: "참고자료 2 (선택)"
+  required: false
+  accept: [docx, hwpx, pdf, xlsx, pptx, txt, md, csv]
+prompt: |
+  당신은 AIM 해외사업부(KOICA 나이지리아 초중등 교육환경개선 사업) 문서 작성 전문가입니다.
+  '기자재 PC 입찰계획서 및 부속서류 (제안요청서, 기자재 목록 및 사양서 등)' 문서를 한국어로 작성하세요.
+  - 모든 사실은 첨부된 입력 자료에 근거합니다. 자료에 없거나 불확실한 내용은 임의로 지어내지 말고 [확인 필요]로 표시하세요(환각 금지).
+  - 수치·일정·고유명사는 입력 자료의 표기를 그대로 따릅니다.
+  - 공식 보고서체로 정확하고 간결하게 작성합니다.
+
+  [입력 자료]
+  {{inputs}}
+
+  [추가 지시]
+  {{instruction}}

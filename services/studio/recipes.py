@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from . import config
 
-ALLOWED_FORMATS = {"hwpx", "docx", "pptx", "xlsx", "md"}
+ALLOWED_FORMATS = {"hwpx", "docx", "pptx", "xlsx", "md", "mckinsey"}
 
 
 class RecipeError(Exception):
@@ -52,8 +52,22 @@ def _normalize(raw: Dict[str, Any], src: str) -> Dict[str, Any]:
     if fmt not in ALLOWED_FORMATS:
         raise RecipeError(f"{src}: 지원하지 않는 출력 형식 '{fmt}' (가능: {sorted(ALLOWED_FORMATS)})")
 
+    # 'mckinsey' 는 별칭: 파일 확장자는 pptx, 전용 mode(mckinsey_deck)로 렌더.
+    forced_mode = None
+    if fmt == "mckinsey":
+        fmt = "pptx"
+        forced_mode = "mckinsey_deck"
+
     # mode 는 format 에서 추론(override 가능): pptx→slides, xlsx→table, 그 외→report
-    mode = str(out.get("mode") or ("slides" if fmt == "pptx" else "table" if fmt == "xlsx" else "report")).lower()
+    mode = str(out.get("mode") or forced_mode
+               or ("slides" if fmt == "pptx" else "table" if fmt == "xlsx" else "report")).lower()
+
+    # workflow: 근거 기반 5단계 노출 여부(레시피 종류별 자동, 레시피에서 override 가능).
+    #   full   = 보고서/발표자료/계획서류(hwpx/docx/pptx) → 5단계 스트립 자동 표시
+    #   simple = 단순 양식/표(xlsx, md)            → 기존 '한 번에 생성'만
+    workflow = str(raw.get("workflow") or "").lower().strip()
+    if workflow not in ("full", "simple"):
+        workflow = "full" if fmt in ("hwpx", "docx", "pptx") else "simple"
 
     inputs: List[Dict[str, Any]] = []
     for i, item in enumerate(raw.get("inputs") or []):
@@ -74,6 +88,7 @@ def _normalize(raw: Dict[str, Any], src: str) -> Dict[str, Any]:
         "name": name,
         "category": str(raw.get("category") or "기타"),
         "description": str(raw.get("description") or ""),
+        "workflow": workflow,
         "model": raw.get("model") or None,
         "output": {
             "format": fmt,

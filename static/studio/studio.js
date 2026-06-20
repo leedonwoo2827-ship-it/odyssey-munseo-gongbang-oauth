@@ -13,6 +13,7 @@ const el = (tag, cls, txt) => {
 let RECIPES = [];
 let CURRENT = null;   // 선택된 레시피
 let JOB = null;       // 현재 작업 id
+let STYLE_FILES = []; // 지난 산출물(문체 앵커) 파일들
 const COLLAPSED = new Set();  // 접힌 카테고리 이름들 (탐색기처럼 접기/펴기)
 
 // ── 초기화 ───────────────────────────────────────────────
@@ -21,6 +22,20 @@ async function init() {
   $("#generate").addEventListener("click", generate);
   $("#refine-btn").addEventListener("click", refine);
   $("#refine").addEventListener("keydown", (e) => { if (e.key === "Enter") refine(); });
+  // 근거 기반 5단계
+  $("#guided-on").addEventListener("change", syncGuidedMode);
+  $("#s-learn").addEventListener("click", stageLearn);
+  $("#s-research").addEventListener("click", stageResearch);
+  $("#s-generate").addEventListener("click", stageGenerate);
+  $("#s-review").addEventListener("click", stageReview);
+  $("#s-revise").addEventListener("click", stageRevise);
+  $("#brief-box").addEventListener("blur", saveBrief);
+  $("#style-files").addEventListener("change", (e) => {
+    STYLE_FILES = Array.from(e.target.files || []);
+    const box = $("#style-list");
+    box.style.display = STYLE_FILES.length ? "block" : "none";
+    box.textContent = STYLE_FILES.length ? ("✓ " + STYLE_FILES.map(f => f.name).join(", ")) : "";
+  });
   // 연결 상태 모달 (agy)
   $("#open-settings").addEventListener("click", () => openSettings(false));
   $("#close-settings").addEventListener("click", closeSettings);
@@ -243,6 +258,7 @@ function renderCatalog() {
 function selectRecipe(r) {
   CURRENT = r;
   JOB = null;
+  STYLE_FILES = [];
   renderCatalog();
   $("#work-empty").style.display = "none";
   $("#work").style.display = "block";
@@ -258,6 +274,171 @@ function selectRecipe(r) {
     inputs.appendChild(el("div", "empty", "이 유형은 입력 문서 없이 지시(메모)만으로 생성합니다."));
   }
   r.inputs.forEach(inp => inputs.appendChild(buildSlot(inp)));
+
+  // 근거 기반 5단계: 레시피 종류별 자동(full 만 노출). 상태 초기화.
+  $("#style-files").value = "";
+  $("#style-list").style.display = "none";
+  $("#style-list").textContent = "";
+  $("#guided").style.display = (r.workflow === "full") ? "block" : "none";
+  $("#guided-on").checked = true;
+  $("#brief-wrap").style.display = "none";
+  $("#brief-box").value = "";
+  $("#review-wrap").style.display = "none";
+  $("#review-box").innerHTML = "";
+  setGuidedMsg("");
+  ["learn", "research", "generate", "review", "revise"].forEach(s => markStage(s, ""));
+  syncGuidedMode();
+}
+
+// ── 근거 기반 5단계 ──────────────────────────────────────
+function syncGuidedMode() {
+  const guidedVisible = $("#guided").style.display !== "none";
+  const on = guidedVisible && $("#guided-on").checked;
+  $("#step-strip").style.display = on ? "" : "none";
+  $(".guided-actions").style.display = on ? "" : "none";
+  // 단계별 진행이 켜져 있으면 하단 '한 번에 생성'은 숨김(③ 생성으로 대체)
+  $(".actions").style.display = on ? "none" : "flex";
+  if (!on) {
+    $("#brief-wrap").style.display = "none";
+    $("#review-wrap").style.display = "none";
+  }
+}
+
+function setGuidedMsg(t) { const e = $("#guided-msg"); if (e) e.textContent = t || ""; }
+
+function markStage(name, state) {
+  const icon = { running: "⏳", done: "✓", error: "✗" }[state] || "";
+  const e = $("#st-" + name);
+  if (e) e.textContent = icon;
+}
+
+function applyStageStatus(d) {
+  const ss = (d && d.stage_status) || {};
+  ["learn", "research", "generate", "review", "revise"].forEach(s => {
+    if (ss[s]) markStage(s, ss[s]);
+  });
+}
+
+function guidedBusy(on) {
+  $("#guided-spinner").style.display = on ? "inline-block" : "none";
+  ["s-learn", "s-research", "s-generate", "s-review", "s-revise"]
+    .forEach(id => { const b = $("#" + id); if (b) b.disabled = on; });
+}
+
+// 첫 단계에서 'defer' 작업(생성 보류)을 만든다. 입력/지난 산출물/지시를 함께 올린다.
+async function ensureJob() {
+  if (JOB) return JOB;
+  const fd = new FormData();
+  fd.append("recipe_id", CURRENT.id);
+  fd.append("instruction", $("#instruction").value || "");
+  fd.append("defer_generate", "1");
+  document.querySelectorAll(".slot").forEach(slot => {
+    if (slot._file) fd.append(slot.dataset.key, slot._file);
+  });
+  STYLE_FILES.forEach(f => fd.append("__style__", f));
+  const r = await fetch(`${API}/jobs`, { method: "POST", body: fd });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || "작업 생성 실패");
+  JOB = d.id;
+  return JOB;
+}
+
+async function stageLearn() {
+  if (!CURRENT) return;
+  guidedBusy(true); markStage("learn", "running"); setGuidedMsg("자료 학습(추출·색인) 중…");
+  try {
+    await ensureJob();
+    const r = await fetch(`${API}/jobs/${JOB}/learn`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) { markStage("learn", "error"); setGuidedMsg(d.detail || "학습 실패"); return; }
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    applyStageStatus(fin);
+    if (fin.status === "error") { markStage("learn", "error"); setGuidedMsg(fin.error || "학습 실패"); return; }
+    const ev = fin.evidence || {};
+    markStage("learn", "done");
+    setGuidedMsg(`✓ 학습 완료 — ${ev.chunks || 0}개 조각 (${ev.retriever || "naive"} 검색)`);
+  } catch (e) { markStage("learn", "error"); setGuidedMsg("학습 실패: " + e.message); }
+  finally { guidedBusy(false); }
+}
+
+async function stageResearch() {
+  if (!CURRENT) return;
+  guidedBusy(true); markStage("research", "running"); setGuidedMsg("자료 심층분석 중…");
+  try {
+    await ensureJob();
+    const r = await fetch(`${API}/jobs/${JOB}/research`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+    });
+    const d = await r.json();
+    if (!r.ok) { markStage("research", "error"); setGuidedMsg(d.detail || "분석 실패"); return; }
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    if (fin.status === "error") { markStage("research", "error"); setGuidedMsg(fin.error || "분석 실패"); return; }
+    $("#brief-wrap").style.display = "block";
+    $("#brief-box").value = fin.research_brief || "";
+    applyStageStatus(fin); markStage("research", "done");
+    setGuidedMsg("브리프 생성됨 — 검토·수정 후 ③ 생성");
+  } catch (e) { markStage("research", "error"); setGuidedMsg("분석 실패: " + e.message); }
+  finally { guidedBusy(false); }
+}
+
+async function saveBrief() {
+  if (!JOB) return;
+  try {
+    await fetch(`${API}/jobs/${JOB}/brief`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ brief: $("#brief-box").value || "" }),
+    });
+  } catch (e) { /* 무시 */ }
+}
+
+async function stageGenerate() {
+  if (!CURRENT) return;
+  guidedBusy(true); markStage("generate", "running"); setGuidedMsg("문서 생성 중…");
+  try {
+    await ensureJob();
+    if (($("#brief-box").value || "").trim()) await saveBrief();
+    const r = await fetch(`${API}/jobs/${JOB}/generate`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) { markStage("generate", "error"); setGuidedMsg(d.detail || "생성 실패"); return; }
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    JOB = fin.id || JOB;
+    renderResult(fin); applyStageStatus(fin);
+    markStage("generate", fin.status === "error" ? "error" : "done");
+    setGuidedMsg(fin.status === "error" ? "생성 오류" : "생성 완료 — ④ 검수로 점검");
+  } catch (e) { markStage("generate", "error"); setGuidedMsg("생성 실패: " + e.message); }
+  finally { guidedBusy(false); }
+}
+
+async function stageReview() {
+  if (!JOB) { setGuidedMsg("먼저 ③ 생성하세요."); return; }
+  guidedBusy(true); markStage("review", "running"); setGuidedMsg("근거와 대조해 검수 중…");
+  try {
+    const r = await fetch(`${API}/jobs/${JOB}/review`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) { markStage("review", "error"); setGuidedMsg(d.detail || "검수 실패"); return; }
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    if (fin.status === "error") { markStage("review", "error"); setGuidedMsg(fin.error || "검수 실패"); return; }
+    $("#review-wrap").style.display = "block";
+    $("#review-box").innerHTML = renderMarkdown(fin.review_report || "");
+    applyStageStatus(fin); markStage("review", "done");
+    setGuidedMsg("검수 결과 확인 — ⑤ 검수 반영");
+  } catch (e) { markStage("review", "error"); setGuidedMsg("검수 실패: " + e.message); }
+  finally { guidedBusy(false); }
+}
+
+async function stageRevise() {
+  if (!JOB) { setGuidedMsg("먼저 ④ 검수하세요."); return; }
+  guidedBusy(true); markStage("revise", "running"); setGuidedMsg("검수 결과 반영 중…");
+  try {
+    const r = await fetch(`${API}/jobs/${JOB}/revise`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) { markStage("revise", "error"); setGuidedMsg(d.detail || "반영 실패"); return; }
+    const fin = (d.status === "running") ? await pollJob(JOB) : d;
+    renderResult(fin); applyStageStatus(fin);
+    markStage("revise", fin.status === "error" ? "error" : "done");
+    setGuidedMsg(fin.status === "error" ? "반영 오류" : "검수 반영 완료");
+  } catch (e) { markStage("revise", "error"); setGuidedMsg("반영 실패: " + e.message); }
+  finally { guidedBusy(false); }
 }
 
 function buildSlot(inp) {
