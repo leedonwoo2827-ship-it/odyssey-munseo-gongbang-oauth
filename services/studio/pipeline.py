@@ -112,8 +112,12 @@ def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
         )
     elif mode == "slides":
         tmpl += (
-            '\n\n출력 형식: JSON. {"title": 표지제목, "subtitle": 부제, '
-            '"slides": [{"title": 슬라이드제목, "bullets": [불릿 3~5개]}]} 만 출력.'
+            '\n\n출력 형식: JSON 만 출력. '
+            '{"title": 발표 제목(한 줄, 25자 이내), '
+            '"subtitle": 사업명·기간·발표자 등 부가정보(한 줄), '
+            '"slides": [{"title": 슬라이드 제목(짧게), "bullets": [핵심 불릿 3~5개]}]}. '
+            '불릿은 문장이 아니라 키워드 중심 구로 한 줄씩 간결하게(각 40자 이내). '
+            '표지 정보를 title 에 몰아넣지 말고 subtitle 로 분리. 수치·고유명사는 근거에 있는 것만.'
         )
     elif mode == "table":
         tmpl += (
