@@ -250,6 +250,47 @@ def _add_text(slide, x, y, w, h, text, size, color, bold=False, align=None,
     return tb
 
 
+def _to_num(v):
+    """차트 값 → float. 비숫자('[확인 필요]' 등)·빈값은 None.
+
+    핵심: 비숫자 값을 차트에 그대로 넣으면 PowerPoint가 파일을 못 연다(손상).
+    """
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        s = str(v).strip().replace(",", "").replace("%", "").replace(" ", "")
+        if not s:
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+
+def _add_data_pending(slide, rect, items, note="[확인 필요]"):
+    """차트 값이 없거나 비숫자일 때 '깨진 차트' 대신 깔끔한 자리표시.
+
+    항목(카테고리/라벨)을 줄별로 보여주고 각 줄에 [확인 필요]를 달아, 작성자가
+    무엇을 채워야 하는지 명확히 한다(초안→사람 보완 철학). 파일은 항상 유효.
+    """
+    from pptx.util import Emu
+    from pptx.enum.text import MSO_ANCHOR
+    x, y, w, h = rect
+    tb = slide.shapes.add_textbox(Emu(x), Emu(y), Emu(w), Emu(h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+    items = [str(it).strip() for it in (items or []) if str(it).strip()]
+    lines = [f"· {it}  —  {note}" for it in items] or [f"데이터 {note}"]
+    for i, ln in enumerate(lines):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        r = p.add_run()
+        r.text = ln
+        _set_run(r, FONT, 11, GRAY_50, False)
+    return tb
+
+
 # ── 박스 내부(헤더/단위/시각화/인사이트/출처) ──────────────────────────
 def _render_box(slide, box, content):
     from pptx.enum.text import MSO_ANCHOR
@@ -271,11 +312,23 @@ def _render_box(slide, box, content):
 
     kind = str(content.get("kind", "")).lower()
     if kind in ("column", "bar", "line"):
-        _add_cat_chart(slide, viz_rect, kind, content.get("categories", []),
-                       _norm_series(content.get("series")),
-                       content.get("number_format", "0"))
+        # 값을 숫자로 강제. 숫자가 하나도 없으면 깨진 차트 대신 [확인 필요] 자리표시.
+        raw = _norm_series(content.get("series"))
+        num = [(n, [_to_num(v) for v in vals]) for n, vals in raw]
+        has_num = any(any(v is not None for v in vals) for _, vals in num)
+        if has_num:
+            clean = [(n, [(v if v is not None else 0) for v in vals]) for n, vals in num]
+            _add_cat_chart(slide, viz_rect, kind, content.get("categories", []),
+                           clean, content.get("number_format", "0"))
+        else:
+            _add_data_pending(slide, viz_rect, content.get("categories", []))
     elif kind == "doughnut":
-        _add_doughnut(slide, viz_rect, content.get("labels", []), content.get("values", []))
+        vals = [_to_num(v) for v in content.get("values", [])]
+        if any(v is not None for v in vals):
+            _add_doughnut(slide, viz_rect, content.get("labels", []),
+                          [(v if v is not None else 0) for v in vals])
+        else:
+            _add_data_pending(slide, viz_rect, content.get("labels", []))
     elif kind == "table":
         _add_table(slide, viz_rect, content.get("headers", []), content.get("rows", []))
     elif kind == "kpi":
