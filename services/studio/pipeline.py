@@ -95,7 +95,27 @@ def _build_prompt(recipe: Dict[str, Any], input_texts: List[Dict[str, str]],
     tmpl += _GROUNDING_RULES
 
     mode = recipe["output"]["mode"]
-    if mode == "mckinsey_deck":
+    if mode == "design_deck":
+        tmpl += (
+            "\n\n출력 형식: JSON 만 출력(설명·코드펜스 금지). 도형 조립형 발표 덱을 설계한다.\n"
+            '{"slides":[\n'
+            '  {"type":"cover","title":표지제목,"subtitle":"사업명·기간·발표자"},\n'
+            '  {"type":"toc","chapter":"OVERVIEW","title":"목차","items":[{"no":"01","part":"Part I","title":섹션명}]},\n'
+            '  {"type":"divider","no":"01","part":"PART I","title":섹션명},\n'
+            '  {"type":"content","chapter":"PART I · 섹션명","title":결론문장,"subtitle":뒷받침 한 줄,'
+            '"blocks":[블록 1~2개]}\n'
+            "]}\n"
+            "블록 종류(필요한 것만):\n"
+            '- {"kind":"progress","header":제목,"items":[{"label":라벨,"sub":보조,"pct":숫자|null}]}  // 진행률 막대. 모르면 pct:null\n'
+            '- {"kind":"kpi_cards","cards":[{"header":제목,"value":"34%","desc":설명}]}  // 핵심 수치 카드(슬라이드 오른쪽)\n'
+            '- {"kind":"timeline","header":제목,"items":[{"date":날짜,"text":내용}]}  // 일정·경과\n'
+            '- {"kind":"bullets","header":제목,"items":["요점", ...]}\n'
+            '- {"kind":"table","header":제목,"unit":"단위: %","headers":[열...],"rows":[[셀...]]}\n'
+            "규칙: 각 Part 는 divider 1장 + content 1~3장. content 의 title 은 토픽이 아니라 '결론 문장'. "
+            "수치·고유명사는 근거에 있는 것만 쓰고, 없으면 값에 '[확인 필요]'(progress 는 pct:null). "
+            "표지+목차+Part별 divider 포함 15장 내외. 한국어."
+        )
+    elif mode == "mckinsey_deck":
         tmpl += (
             "\n\n출력 형식: JSON 만 출력(설명·코드펜스 금지). 아래 스키마를 따른다.\n"
             '{"title":표지제목,"subtitle":부제,'
@@ -136,8 +156,8 @@ def _generate_content(recipe: Dict[str, Any], prompt: str) -> Any:
     # 최종 모델 선택은 llm.chat 이 활성 공급자의 선택값(get_model)으로 결정한다.
     model = recipe.get("model")
     mode = recipe["output"]["mode"]
-    if mode in ("slides", "table", "mckinsey_deck"):
-        max_tokens = 12000 if mode == "mckinsey_deck" else 6000
+    if mode in ("slides", "table", "mckinsey_deck", "design_deck"):
+        max_tokens = 12000 if mode in ("mckinsey_deck", "design_deck") else 6000
         return llm.generate_json(prompt, model=model, max_tokens=max_tokens)
     return llm.generate_text(prompt, model=model, max_tokens=8000)
 

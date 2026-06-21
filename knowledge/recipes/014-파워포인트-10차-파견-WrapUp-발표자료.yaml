@@ -1,9 +1,9 @@
 id: 014-파워포인트-10차-파견-WrapUp-발표자료
 name: 10차 파견 Wrap-Up 발표자료
 category: 발표자료
-description: 입력 자료로 '10차 파견 Wrap-Up 발표자료' 초안 생성.
+description: 입력 자료로 '10차 파견 Wrap-Up 발표자료'를 카드·타임라인·진행바 디자인 덱으로 생성.
 output:
-  format: pptx
+  format: design
   filename: 10차-파견-Wrap-Up-발표자료_{date}
 inputs:
 - key: inputA
@@ -30,4 +30,48 @@ inputs:
   - pdf
   - xlsx
   - pptx
-prompt: "당신은 AIM 해외사업부(유비온 컨소시엄)의 'KOICA 나이지리아 초중등 교육환경개선 사업(PMC)' 문서 작성 전문가입니다.\n아래 입력 자료를 근거로 '10차 파견 Wrap-Up 발표자료' 초안을 한국어 문서로 작성하세요.\n\n[작성 원칙]\n- 사실·수치·고유명사(인명·기관·지역·일자·금액)는 입력 자료에 있는 것만 사용한다. 없거나 불확실하면 지어내지 말고 [확인 필요: …]로 남긴다.\n- '지난 산출물(직전 차수 Wrap-Up)'이 주어지면 그 목차·구성·문체·완성도를 기준으로 삼는다(데이터는 위 입력에서만).\n- 보고서체의 정확하고 간결한 공식 문체. 홍보성·과장 표현 배제.\n- 표준 용어를 일관되게: PMC, KOICA, UBEC, SUBEB(주 교육청), TLC(Teachers Learning Community), SCM(SUBEB Chair Meeting), ICSE(International Conference on Smart Education), GTT(일반교원연수), M&E(성과관리), PDM(성과지표).\n\n[슬라이드 구성 — 직전 차수 Wrap-Up이 있으면 그 목차를 우선 따르고, 없으면 아래 표준 Part 구성]\n1. 표지 (사업명 / 10차 파견 Wrap-Up / 기간 / PM)\n2. 목차 (아래 Part I~VI)\n3. [간지] Part I. KOICA PMC 사업 진행 현황\n   - 사업 개요·범위·핵심 프로그램(GTT·TLC·SCM·콘텐츠개발·성과관리), 6개 스마트스쿨 현황\n4. [간지] Part II. 10차 파견 중 수행 내역\n   - 활동별(TLC 워크숍 · SCM · 학교 방문 · 성과평가 등) 일정·결과, 인력/일정은 표로\n5. [간지] Part III. 콘텐츠 개발 스튜디오 활용 (디지털 콘텐츠 제작)  [자료에 해당 시]\n6. [간지] Part IV. 6개 KOICA 지원 스마트스쿨 시설 유지·관리  [자료에 해당 시]\n7. [간지] Part V. 국제 스마트교육 컨퍼런스(ICSE) 2025\n8. [간지] Part VI. 논의 안건(Discussion Agenda)\n- 각 Part는 '간지(섹션 표지) 1장 + 내용 1~3장'. 간지 슬라이드는 제목만(불릿 비움).\n- 내용 슬라이드 = 제목 + 핵심 불릿(키워드 중심, 한 줄씩). 표가 적합하면 불릿 대신 표 형태로 정리.\n- 사진·맞춤 도식 자리는 불릿에 '[현장 사진 삽입]' / '[도식 삽입: 설명]'으로 표시(이미지는 사람이 추가).\n\n[입력 자료]\n{{inputs}}\n\n[추가 지시]\n{{instruction}}\n"
+prompt: '당신은 AIM 해외사업부(유비온 컨소시엄)의 ''KOICA 나이지리아 초중등 교육환경개선 사업(PMC)'' 발표자료 설계 전문가입니다.
+
+  아래 입력 자료를 근거로 ''10차 파견 Wrap-Up 발표자료''를 한국어 디자인 덱으로 설계하세요.
+
+
+  [작성 원칙]
+
+  - 사실·수치·고유명사(인명·기관·지역·일자·금액)는 입력 자료에 있는 것만 사용한다. 없거나 불확실하면 지어내지 말고 값에 ''[확인 필요]''(진행률은 pct:null)로 남긴다.
+
+  - ''지난 산출물(직전 차수 Wrap-Up)''이 주어지면 그 목차·구성·톤을 기준으로 삼는다(데이터는 위 입력에서만).
+
+  - 결론 중심의 간결한 공식 문체. 홍보성·과장 표현 배제.
+
+  - 표준 용어 일관: PMC, KOICA, UBEC, SUBEB, TLC, SCM, ICSE, GTT, M&E, PDM.
+
+
+  [덱 구성 — 직전 차수 Wrap-Up이 있으면 그 목차를 우선 따르고, 없으면 아래 Part 구성]
+
+  - 표지(cover) → 목차(toc, Part I~VI) → 각 Part마다 간지(divider) 1장 + 내용(content) 1~3장.
+
+  - Part I. KOICA PMC 사업 진행 현황 — 완료율은 progress 블록, 종료식·잔여 항목은 kpi_cards.
+
+  - Part II. 10차 파견 수행 내역 — 주요 활동은 timeline, 인력/일정/지표는 table.
+
+  - Part III. 콘텐츠 개발 스튜디오 활용 (디지털 콘텐츠 제작)  [자료에 해당 시]
+
+  - Part IV. 6개 KOICA 지원 스마트스쿨 시설 유지·관리  [자료에 해당 시]
+
+  - Part V. 국제 스마트교육 컨퍼런스(ICSE) 2025
+
+  - Part VI. 논의 안건(Discussion Agenda)
+
+  - content 의 title 은 토픽이 아니라 ''결론 문장''으로. 한 슬라이드에 블록 1~2개.
+
+
+  [입력 자료]
+
+  {{inputs}}
+
+
+  [추가 지시]
+
+  {{instruction}}
+
+  '

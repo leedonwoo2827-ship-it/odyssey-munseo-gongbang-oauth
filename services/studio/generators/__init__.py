@@ -24,10 +24,15 @@ def render(fmt: str, payload: Any, out_path: str, template: Optional[str] = None
     if fmt == "hwpx":
         return hwpx_gen.render(payload, out_path, template=template)
     if fmt == "pptx":
+        m = (mode or "").lower()
         # McKinsey 덱 모드 → 템플릿 복제 + 네이티브 차트 렌더러
-        if (mode or "").lower() == "mckinsey_deck":
+        if m == "mckinsey_deck":
             from . import mckinsey_pptx_gen
             return mckinsey_pptx_gen.render(payload, out_path, template=template)
+        # 디자인 덱 모드 → 도형 조립(카드/타임라인/진행바/KPI/간지)
+        if m == "design_deck":
+            from . import design_pptx_gen
+            return design_pptx_gen.render(payload, out_path, template=template)
         return pptx_gen.render(payload, out_path, template=template)
     if fmt == "xlsx":
         return xlsx_gen.render(payload, out_path)

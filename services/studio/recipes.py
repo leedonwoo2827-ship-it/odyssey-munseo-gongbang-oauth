@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from . import config
 
-ALLOWED_FORMATS = {"hwpx", "docx", "pptx", "xlsx", "md", "mckinsey"}
+ALLOWED_FORMATS = {"hwpx", "docx", "pptx", "xlsx", "md", "mckinsey", "design"}
 
 
 class RecipeError(Exception):
@@ -52,11 +52,14 @@ def _normalize(raw: Dict[str, Any], src: str) -> Dict[str, Any]:
     if fmt not in ALLOWED_FORMATS:
         raise RecipeError(f"{src}: 지원하지 않는 출력 형식 '{fmt}' (가능: {sorted(ALLOWED_FORMATS)})")
 
-    # 'mckinsey' 는 별칭: 파일 확장자는 pptx, 전용 mode(mckinsey_deck)로 렌더.
+    # 'mckinsey'/'design' 은 별칭: 파일 확장자는 pptx, 전용 mode 로 렌더.
     forced_mode = None
     if fmt == "mckinsey":
         fmt = "pptx"
         forced_mode = "mckinsey_deck"
+    elif fmt == "design":
+        fmt = "pptx"
+        forced_mode = "design_deck"
 
     # mode 는 format 에서 추론(override 가능): pptx→slides, xlsx→table, 그 외→report
     mode = str(out.get("mode") or forced_mode
