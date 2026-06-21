@@ -189,12 +189,14 @@ def _kpi_cards(slide, x, y, w, h, blk):
         bg = AMBER_BG if need else CARD_BG
         _box(slide, x, cy, w, ch, fill=bg, line=None)
         pad = int(0.22 * EMU)
-        _text(slide, x + pad, cy + pad, w - 2 * pad, int(0.3 * EMU),
+        iw = w - 2 * pad
+        # header → value → desc 를 위에서부터 쌓아 겹치지 않게.
+        _text(slide, x + pad, cy + pad, iw, int(0.28 * EMU),
               [(str(c.get("header", "")), 12.5, (AMBER_TX if need else PRIMARY), True)])
-        _text(slide, x + pad, cy + pad + int(0.32 * EMU), w - 2 * pad, int(0.6 * EMU),
-              [(str(c.get("value", "")), 28, (AMBER if need else NAVY), True)])
+        _text(slide, x + pad, cy + pad + int(0.3 * EMU), iw, int(0.5 * EMU),
+              [(str(c.get("value", "")), 25, (AMBER if need else NAVY), True)])
         if c.get("desc"):
-            _text(slide, x + pad, cy + ch - pad - int(0.3 * EMU), w - 2 * pad, int(0.3 * EMU),
+            _text(slide, x + pad, cy + pad + int(0.84 * EMU), iw, ch - int(1.06 * EMU),
                   [(str(c["desc"]), 10.5, (AMBER_TX if need else SUB), False)])
         cy += ch + gap
 
