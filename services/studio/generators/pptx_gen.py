@@ -136,10 +136,22 @@ def _pick_layouts(prs):
 
 
 def _strip_slides(prs) -> None:
-    """템플릿에 들어있던 샘플 슬라이드를 모두 제거."""
-    lst = prs.slides._sldIdLst
-    for sid in list(lst):
-        lst.remove(sid)
+    """템플릿에 들어있던 샘플 슬라이드를 모두 제거(파트+관계까지).
+
+    sldIdLst 항목만 지우면 슬라이드 '파트'(slide1.xml 등)가 패키지에 남아, 새 슬라이드가
+    같은 이름(slide1.xml)으로 추가될 때 '중복 파트명'으로 파일이 손상된다. 관계(rel)를
+    함께 끊어 옛 파트가 저장되지 않게 한다.
+    """
+    from pptx.oxml.ns import qn
+    sldIdLst = prs.slides._sldIdLst
+    for sldId in list(sldIdLst):
+        rId = sldId.get(qn("r:id"))
+        sldIdLst.remove(sldId)
+        if rId:
+            try:
+                prs.part.drop_rel(rId)
+            except Exception:
+                pass
 
 
 def render(payload: Any, out_path: str, template: Optional[str] = None) -> str:
