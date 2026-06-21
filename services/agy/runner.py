@@ -305,6 +305,26 @@ def list_models(force: bool = False) -> List[str]:
     return models
 
 
+# 프롬프트가 이 길이를 넘으면 명령줄 인자로 못 넘긴다(Windows CreateProcess 한계 ~32KB →
+# WinError 206). 그 이상은 임시파일에 써서 agy 가 파일을 읽게 한다(--add-dir + 도구).
+_ARGV_PROMPT_LIMIT = 16000
+
+
+def _read_result_file(path: str) -> str:
+    """agy 가 저장한 결과 파일을 읽어 정리(코드펜스 제거). 없거나 비면 ''."""
+    try:
+        if not os.path.exists(path):
+            return ""
+        txt = open(path, encoding="utf-8", errors="replace").read().strip()
+    except Exception:
+        return ""
+    if txt.startswith("```"):
+        m = re.match(r"^```[A-Za-z0-9]*\s*\n?(.*?)\n?```\s*$", txt, re.DOTALL)
+        if m:
+            txt = m.group(1).strip()
+    return txt
+
+
 class AgyClient:
     """ubion_llm.UbionClient 드롭인 대체.
 
@@ -375,6 +395,10 @@ class AgyClient:
                 "docs/antigravity/install.md 를 참고해 설치 후 `agy` 로 Google 로그인하세요."
             )
 
+        # 프롬프트가 길면 명령줄 한계(WinError 206)를 넘으므로 임시파일로 넘긴다.
+        if len(prompt) > _ARGV_PROMPT_LIMIT:
+            return self._run_via_file(path, prompt)
+
         # 1) PTY 캡처 우선 (agy 는 콘솔에 직접 출력하므로 파이프로는 안 잡힘)
         sel = get_model()
         model_opt = (["--model", sel] if sel else [])
@@ -421,6 +445,57 @@ class AgyClient:
             last_err = _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
 
         raise last_err or AgyError("agy 호출이 모든 방식에서 실패했습니다.")
+
+    def _run_via_file(self, path: str, prompt: str) -> str:
+        """긴 프롬프트를 임시파일에 쓰고 agy 가 읽어 수행 → 결과도 파일로 받는다.
+
+        명령줄 길이 한계(WinError 206) 우회. agy 는 에이전트형 CLI라 --add-dir 로 추가한
+        폴더의 파일을 읽고/쓸 수 있다. 결과를 콘솔이 아니라 result.txt 로 저장하게 해서
+        에이전트의 진행상황(narration)이 결과물에 섞이지 않게 한다.
+        """
+        import tempfile
+        import shutil as _shutil
+        sel = get_model()
+        model_opt = (["--model", sel] if sel else [])
+        d = tempfile.mkdtemp(prefix="agy_prompt_")
+        fp = os.path.join(d, "task.txt")
+        outfp = os.path.join(d, "result.txt")
+        try:
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(prompt)
+            instr = (
+                f"{fp} 파일을 열어 그 안의 지시/요청을 그대로 수행하라. "
+                f"파일에 명시된 출력 형식(JSON 등)을 그대로 지키고, 결과물은 {outfp} 파일에 저장하라. "
+                f"{outfp} 에는 설명·머리말·코드펜스 없이 요청한 결과물만 써라. "
+                "저장이 끝나면 'DONE' 한 단어만 출력하라."
+            )
+            argv = [path, "--print", instr, "--add-dir", d,
+                    "--dangerously-skip-permissions", *model_opt]
+
+            console = self._run_via_pty(argv)  # PTY 우선(없으면 None)
+            result = _read_result_file(outfp)
+            if result:
+                return result
+
+            if console is not None:  # PTY 는 됐는데 파일이 안 써짐 → 인증/할당량 점검
+                err = _classify_error(console, "", 0)
+                if isinstance(err, (AgyNotAuthenticated, AgyQuotaExceeded)):
+                    raise err
+
+            # subprocess 폴백
+            try:
+                proc = subprocess.run(
+                    argv, capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=self.timeout + 60,
+                )
+            except subprocess.TimeoutExpired:
+                raise AgyError(f"agy 응답 시간 초과({self.timeout}s). 입력/프롬프트를 줄여보세요.")
+            result = _read_result_file(outfp)
+            if result:
+                return result
+            raise _classify_error(proc.stdout or "", proc.stderr or "", proc.returncode)
+        finally:
+            _shutil.rmtree(d, ignore_errors=True)
 
 
 # 모듈 전역 싱글톤(가벼우므로 import 시 생성해도 무방 — 실제 호출 전엔 agy 를 건드리지 않음)
