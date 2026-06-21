@@ -75,8 +75,9 @@ def _parse_json_loose(raw: str) -> Any:
     fence = re.search(r"```(?:json)?\s*(.*?)```", raw, re.DOTALL)
     if fence:
         raw = fence.group(1).strip()
+    # strict=False: 문자열 값 안의 실제 줄바꿈/탭 등 제어문자를 허용(LLM 흔한 실수).
     try:
-        return json.loads(raw)
+        return json.loads(raw, strict=False)
     except Exception:
         pass
     # 첫 { 또는 [ 부터 마지막 } 또는 ] 까지 잘라서 재시도
@@ -84,7 +85,7 @@ def _parse_json_loose(raw: str) -> Any:
     end = max(raw.rfind("}"), raw.rfind("]"))
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(raw[start:end + 1])
+            return json.loads(raw[start:end + 1], strict=False)
         except Exception:
             pass
     raise ValueError(f"JSON 파싱 실패. 모델 응답 앞부분: {raw[:300]}")
