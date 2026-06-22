@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import copy
 import os
 import re
 import zipfile
@@ -24,6 +25,9 @@ from . import md_gen
 HH = "http://www.hancom.co.kr/hwpml/2011/head"
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HS = "http://www.hancom.co.kr/hwpml/2011/section"
+
+# 진짜 표 렌더링 토글. 한글이 표를 못 열면 .env 에 STUDIO_HWPX_REAL_TABLES=0 → 즉시 평탄화 폴백.
+_REAL_TABLES = os.environ.get("STUDIO_HWPX_REAL_TABLES", "1") not in ("0", "false", "False", "")
 
 
 class HwpxUnavailable(RuntimeError):
@@ -131,11 +135,15 @@ def _render_zip(md: str, out_path: str, template: str) -> str:
     # 2) header.xml 에서 명명 스타일 맵 구성
     style_map = _style_map(blobs.get("Contents/header.xml", b""))
 
+    # 2-b) 진짜 표를 만들기 위한 청사진: 템플릿에 있는 표 단락 1개를 복제용으로 추출
+    #      (맨땅에서 표 XML 을 짜면 한글이 안 여는 위험 → 검증된 구조를 복제)
+    tbl_tmpl = _extract_table_template(blobs, section_names_hint=None)
+
     # 3) 본문 section 파일들 처리 (첫 섹션에만 콘텐츠 주입)
     section_names = sorted(n for n in blobs if n.startswith("Contents/section") and n.endswith(".xml"))
     blocks = mdblocks.parse(md)
     for idx, name in enumerate(section_names):
-        blobs[name] = _rewrite_section(blobs[name], blocks if idx == 0 else [], style_map)
+        blobs[name] = _rewrite_section(blobs[name], blocks if idx == 0 else [], style_map, tbl_tmpl)
 
     # 4) 표지 placeholder 치환(_제목_입력_ 등)이 본문에 있으면 첫 헤딩으로
     title = next((b["text"] for b in blocks if b["type"] == "heading"), "")
@@ -182,7 +190,7 @@ def _pick(style_map: Dict[str, Dict[str, str]], *names: str) -> Optional[Dict[st
 
 
 def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
-                     style_map: Dict[str, Dict[str, str]]) -> bytes:
+                     style_map: Dict[str, Dict[str, str]], tbl_tmpl=None) -> bytes:
     """섹션의 본문 단락을 교체. 첫 단락(secPr=페이지설정)은 보존."""
     from lxml import etree
 
@@ -214,9 +222,20 @@ def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
     for blk in blocks:
         if _is_divider(blk):
             continue
-        for b in (_table_to_blocks(blk) if blk["type"] == "table" else [blk]):
-            st = _style_for_block(b, style_map, normal)
-            root.append(_make_para(b, st, emph, normal))
+        if blk["type"] == "table":
+            # 진짜 표(템플릿 복제). 실패하면 평탄화(불릿)로 폴백 → 문서는 무조건 나오게.
+            if tbl_tmpl is not None and _REAL_TABLES:
+                try:
+                    root.append(_make_table(tbl_tmpl, blk, style_map))
+                    continue
+                except Exception as e:  # noqa: BLE001
+                    print(f"[hwpx_export] 표 렌더 실패, 평탄화 폴백: {e}")
+            for b in _table_to_blocks(blk):
+                st = _style_for_block(b, style_map, normal)
+                root.append(_make_para(b, st, emph, normal))
+            continue
+        st = _style_for_block(blk, style_map, normal)
+        root.append(_make_para(blk, st, emph, normal))
 
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
@@ -235,6 +254,136 @@ def _table_to_blocks(blk: Dict) -> List[Dict]:
         txt = " / ".join(cells)
         out.append({"type": "bullet", "level": 1, "text": txt, "runs": [(txt, False)]})
     return out
+
+
+# ── 진짜 표(테이블) 렌더링 — 템플릿의 기존 표를 복제해 행/열/텍스트만 교체 ──────────
+_ID_SEQ = [2000000000]
+
+
+def _next_id() -> str:
+    _ID_SEQ[0] += 1
+    return str(_ID_SEQ[0])
+
+
+def _extract_table_template(blobs: Dict[str, bytes], section_names_hint=None):
+    """템플릿 섹션에서 표를 감싼 단락(<hp:p>)을 1개 찾아 deepcopy 로 반환. 없으면 None.
+    이 단락을 복제해 행/열/텍스트만 바꾸면 한글이 여는 표 구조를 그대로 재사용한다."""
+    from lxml import etree
+    ptag = f"{{{HP}}}p"
+    tbltag = f"{{{HP}}}tbl"
+    for name in sorted(n for n in blobs if n.startswith("Contents/section") and n.endswith(".xml")):
+        try:
+            root = etree.fromstring(blobs[name])
+        except Exception:
+            continue
+        tbl = root.find(f".//{tbltag}")
+        if tbl is None:
+            continue
+        p = tbl
+        while p is not None and p.tag != ptag:
+            p = p.getparent()
+        if p is not None:
+            return copy.deepcopy(p)
+    return None
+
+
+def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int,
+              width: int, height: int) -> None:
+    """복제한 <hp:tc> 의 주소/크기/스타일/텍스트를 교체. linesegarray 는 제거(한글이 재계산)."""
+    P = f"{{{HP}}}"
+    ca = tc.find(f"{P}cellAddr")
+    if ca is not None:
+        ca.set("colAddr", str(col)); ca.set("rowAddr", str(row))
+    cspan = tc.find(f"{P}cellSpan")
+    if cspan is not None:
+        cspan.set("colSpan", "1"); cspan.set("rowSpan", "1")
+    csz = tc.find(f"{P}cellSz")
+    if csz is not None:
+        csz.set("width", str(width)); csz.set("height", str(height))
+    # 레이아웃 캐시 제거 → 한글이 새 텍스트로 재배치
+    for lsa in list(tc.iter(f"{P}linesegarray")):
+        lsa.getparent().remove(lsa)
+    sub = tc.find(f"{P}subList")
+    cp = sub.find(f"{P}p") if sub is not None else None
+    if cp is None:
+        return
+    cp.set("id", _next_id())
+    if style:
+        cp.set("styleIDRef", style["styleId"])
+        cp.set("paraPrIDRef", style["paraPrIDRef"])
+    runs = cp.findall(f"{P}run")
+    for extra in runs[1:]:
+        cp.remove(extra)
+    run = runs[0] if runs else None
+    if run is None:
+        from lxml import etree
+        run = etree.SubElement(cp, f"{P}run")
+    if style:
+        run.set("charPrIDRef", style["charPrIDRef"])
+    ts = run.findall(f"{P}t")
+    if ts:
+        ts[0].text = text
+        for extra in ts[1:]:
+            run.remove(extra)
+    else:
+        from lxml import etree
+        etree.SubElement(run, f"{P}t").text = text
+
+
+def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
+    """템플릿 표 단락(deepcopy 원본)을 복제해 blk(header/rows)로 채운 <hp:p> 반환."""
+    P = f"{{{HP}}}"
+    p = copy.deepcopy(tbl_tmpl)
+    for lsa in list(p.iter(f"{P}linesegarray")):  # 표 단락 레이아웃 캐시 제거
+        lsa.getparent().remove(lsa)
+    tbl = p.find(f".//{P}tbl")
+    if tbl is None:
+        raise ValueError("표 템플릿에 <hp:tbl> 없음")
+
+    rows_src = tbl.findall(f"{P}tr")
+    if not rows_src:
+        raise ValueError("표 템플릿에 <hp:tr> 없음")
+    tc_tmpl = copy.deepcopy(rows_src[0].find(f"{P}tc"))
+    tr_tmpl = copy.deepcopy(rows_src[0])
+    for tc in tr_tmpl.findall(f"{P}tc"):
+        tr_tmpl.remove(tc)
+    for tr in rows_src:
+        tbl.remove(tr)
+
+    header = [str(c) for c in (blk.get("header") or [])]
+    body = [[str(c) for c in r] for r in (blk.get("rows") or [])]
+    ncol = blk.get("ncol") or len(header) or (max((len(r) for r in body), default=1))
+    ncol = max(1, int(ncol))
+    data = ([header] if header else []) + body
+    if not data:
+        raise ValueError("빈 표")
+    nrow = len(data)
+
+    total_w = 45354          # A4 본문 폭(약 160mm, HWPUNIT). noAdjust=0 이라 한글이 재조정.
+    colw = max(900, total_w // ncol)
+    rowh = 1400
+
+    th = _pick(style_map, "표제목", "강조")
+    bh = _pick(style_map, "표본문", "본문")
+
+    tbl.set("rowCnt", str(nrow))
+    tbl.set("colCnt", str(ncol))
+    tbl.set("id", _next_id())
+    sz = tbl.find(f"{P}sz")
+    if sz is not None:
+        sz.set("width", str(colw * ncol)); sz.set("height", str(rowh * nrow))
+
+    for r, cells in enumerate(data):
+        is_head = (r == 0 and bool(header))
+        style = th if is_head else bh
+        tr = copy.deepcopy(tr_tmpl)
+        for c in range(ncol):
+            tc = copy.deepcopy(tc_tmpl)
+            txt = cells[c] if c < len(cells) else ""
+            _set_cell(tc, txt, style, c, r, colw, rowh)
+            tr.append(tc)
+        tbl.append(tr)
+    return p
 
 
 _DIVIDER_RE = re.compile(r"\s*[-_*=—–]{3,}\s*")
