@@ -135,18 +135,27 @@ def _render_zip(md: str, out_path: str, template: str) -> str:
     # 2) header.xml 에서 명명 스타일 맵 구성
     style_map = _style_map(blobs.get("Contents/header.xml", b""))
 
-    # 2-b) 진짜 표를 만들기 위한 청사진: 템플릿에 있는 표 단락 1개를 복제용으로 추출
-    #      (맨땅에서 표 XML 을 짜면 한글이 안 여는 위험 → 검증된 구조를 복제)
-    tbl_tmpl = _extract_table_template(blobs, section_names_hint=None)
-
-    # 3) 본문 section 파일들 처리 (첫 섹션에만 콘텐츠 주입)
     section_names = sorted(n for n in blobs if n.startswith("Contents/section") and n.endswith(".xml"))
     blocks = mdblocks.parse(md)
-    for idx, name in enumerate(section_names):
-        blobs[name] = _rewrite_section(blobs[name], blocks if idx == 0 else [], style_map, tbl_tmpl)
-
-    # 4) 표지 placeholder 치환(_제목_입력_ 등)이 본문에 있으면 첫 헤딩으로
     title = next((b["text"] for b in blocks if b["type"] == "heading"), "")
+
+    # 3) 본문은 '마지막' 섹션에 주입하고 앞 섹션(표지/간지)은 그대로 보존한다.
+    #    (표지=양식 첫 페이지 그대로. 생성 콘텐츠의 도입부=표지정보는 떼어낸다.)
+    blocks = _drop_cover_info(blocks)
+    body_name = section_names[-1] if section_names else None
+
+    # 3-b) 표 청사진은 '본문 섹션'의 표에서 복제(표지의 디자인 표 말고) → 음영 없는 본문용 표.
+    tbl_tmpl = None
+    if body_name:
+        tbl_tmpl = _extract_table_template({body_name: blobs[body_name]})
+    if tbl_tmpl is None:
+        tbl_tmpl = _extract_table_template(blobs)
+
+    if body_name:
+        blobs[body_name] = _rewrite_section(blobs[body_name], blocks, style_map, tbl_tmpl)
+    # 앞 섹션들(표지 등)은 미수정 → 양식 그대로 보존(빈 섹션도 안 만들어 끝 빈 페이지 방지)
+
+    # 4) 표지에 _제목_입력_ placeholder 가 있으면 문서 제목으로 치환(있을 때만)
     if title:
         for name in section_names:
             xml = blobs[name].decode("utf-8", "replace")
@@ -387,6 +396,20 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
 
 
 _DIVIDER_RE = re.compile(r"\s*[-_*=—–]{3,}\s*")
+
+# 표지정보 제거: 생성 콘텐츠의 도입부(문서 제목 + '항목/내용' 표지정보표)를 떼고
+# 첫 '번호 매겨진' 섹션(1. / I. 등)부터 본문으로 본다. 표지는 양식 첫 페이지를 쓴다.
+_NUM_HEAD_RE = re.compile(r"^\s*(?:\d+|[IVXivxⅠ-Ⅹ]+)[.)]\s*\S")
+_DROP_COVER = os.environ.get("STUDIO_HWPX_DROP_COVER", "1") not in ("0", "false", "False", "")
+
+
+def _drop_cover_info(blocks: List[Dict]) -> List[Dict]:
+    if not _DROP_COVER:
+        return blocks
+    for i, b in enumerate(blocks[:8]):
+        if i > 0 and b.get("type") == "heading" and _NUM_HEAD_RE.match(b.get("text", "") or ""):
+            return blocks[i:]
+    return blocks
 
 
 def _is_divider(blk: Dict) -> bool:
