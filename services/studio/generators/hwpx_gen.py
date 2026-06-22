@@ -151,9 +151,9 @@ def _render_zip(md: str, out_path: str, template: str) -> str:
     if tbl_tmpl is None:
         tbl_tmpl = _extract_table_template(blobs)
 
-    grid_bf = _find_grid_bf(blobs.get("Contents/header.xml", b""))
+    bf_index = _borderfill_index(blobs.get("Contents/header.xml", b""))
     if body_name:
-        blobs[body_name] = _rewrite_section(blobs[body_name], blocks, style_map, tbl_tmpl, grid_bf)
+        blobs[body_name] = _rewrite_section(blobs[body_name], blocks, style_map, tbl_tmpl, bf_index)
     # 앞 섹션들(표지 등)은 미수정 → 양식 그대로 보존(빈 섹션도 안 만들어 끝 빈 페이지 방지)
 
     # 4) 표지에 _제목_입력_ placeholder 가 있으면 문서 제목으로 치환(있을 때만)
@@ -200,7 +200,7 @@ def _pick(style_map: Dict[str, Dict[str, str]], *names: str) -> Optional[Dict[st
 
 
 def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
-                     style_map: Dict[str, Dict[str, str]], tbl_tmpl=None, grid_bf=None) -> bytes:
+                     style_map: Dict[str, Dict[str, str]], tbl_tmpl=None, bf_index=None) -> bytes:
     """섹션의 본문 단락을 교체. 첫 단락(secPr=페이지설정)은 보존."""
     from lxml import etree
 
@@ -236,7 +236,7 @@ def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
             # 진짜 표(템플릿 복제). 실패하면 평탄화(불릿)로 폴백 → 문서는 무조건 나오게.
             if tbl_tmpl is not None and _REAL_TABLES:
                 try:
-                    root.append(_make_table(tbl_tmpl, blk, style_map, grid_bf))
+                    root.append(_make_table(tbl_tmpl, blk, style_map, bf_index))
                     continue
                 except Exception as e:  # noqa: BLE001
                     print(f"[hwpx_export] 표 렌더 실패, 평탄화 폴백: {e}")
@@ -303,20 +303,47 @@ def _extract_table_template(blobs: Dict[str, bytes], section_names_hint=None):
     return best
 
 
-def _find_grid_bf(header_bytes: bytes) -> Optional[str]:
-    """사방(좌·우·상·하) 모두 테두리가 있는 borderFill id 반환(표 왼쪽 외곽선 보강용). 없으면 None."""
+def _borderfill_index(header_bytes: bytes) -> Dict[str, object]:
+    """{borderFill id: element} 인덱스. 표 왼쪽 외곽선 보강용 매칭에 사용."""
     from lxml import etree
+    idx: Dict[str, object] = {}
     if not header_bytes:
-        return None
+        return idx
     try:
         root = etree.fromstring(header_bytes)
     except Exception:
-        return None
+        return idx
     for bf in root.iter(f"{{{HH}}}borderFill"):
-        sides = [bf.find(f"{{{HH}}}{s}") for s in ("leftBorder", "rightBorder", "topBorder", "bottomBorder")]
-        if all(e is not None and e.get("type") == "SOLID" for e in sides):
-            return bf.get("id")
-    return None
+        idx[bf.get("id")] = bf
+    return idx
+
+
+def _bf_sides(bf) -> Dict[str, tuple]:
+    out: Dict[str, tuple] = {}
+    for s in ("leftBorder", "rightBorder", "topBorder", "bottomBorder"):
+        e = bf.find(f"{{{HH}}}{s}")
+        out[s] = (e.get("type"), e.get("width")) if e is not None else (None, None)
+    return out
+
+
+def _match_grid_bf(ref_id: Optional[str], bf_index: Dict[str, object]) -> Optional[str]:
+    """ref 셀과 우/상/하 선 굵기가 같고 좌·우·상·하 모두 테두리인 borderFill id 반환.
+    (왼쪽 열 셀에 적용 → 그 행과 같은 굵기로 표 좌측 외곽선만 추가.)
+    정확히 일치하는 게 없으면 아무 사방 테두리, 그것도 없으면 None."""
+    ref = bf_index.get(ref_id) if ref_id else None
+    rs = _bf_sides(ref) if ref is not None else None
+    fallback = None
+    for bid, bf in bf_index.items():
+        s = _bf_sides(bf)
+        if not all(s[k][0] == "SOLID" for k in ("leftBorder", "rightBorder", "topBorder", "bottomBorder")):
+            continue
+        if fallback is None:
+            fallback = bid
+        if rs is not None and s["rightBorder"][1] == rs["rightBorder"][1] \
+                and s["topBorder"][1] == rs["topBorder"][1] \
+                and s["bottomBorder"][1] == rs["bottomBorder"][1]:
+            return bid
+    return fallback
 
 
 def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int,
@@ -362,9 +389,9 @@ def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int
         etree.SubElement(run, f"{P}t").text = text
 
 
-def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]], grid_bf=None):
+def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]], bf_index=None):
     """템플릿 표 단락(deepcopy 원본)을 복제해 blk(header/rows)로 채운 <hp:p> 반환.
-    grid_bf: 맨 왼쪽 열 셀에 적용할 '사방 테두리' borderFill id(표 좌측 외곽선 보강)."""
+    bf_index: borderFill 인덱스 → 맨 왼쪽 열 셀을 그 행과 같은 굵기의 '사방 테두리'로 보강."""
     P = f"{{{HP}}}"
     p = copy.deepcopy(tbl_tmpl)
     for lsa in list(p.iter(f"{P}linesegarray")):  # 표 단락 레이아웃 캐시 제거
@@ -410,17 +437,22 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]], grid_
     if sz is not None:
         sz.set("width", str(colw * ncol)); sz.set("height", str(rowh * nrow))
 
+    # 왼쪽 열 보강용: 머리/내용 셀과 '같은 굵기'의 사방 테두리 borderFill (굵은 머리선 유지)
+    head_grid = _match_grid_bf(head_tc.get("borderFillIDRef"), bf_index) if bf_index else None
+    body_grid = _match_grid_bf(body_tc.get("borderFillIDRef"), bf_index) if bf_index else None
+
     for r, cells in enumerate(data):
         is_head = (r == 0 and bool(header))
         cell_tmpl = head_tc if is_head else body_tc
+        gb = head_grid if is_head else body_grid
         tr = copy.deepcopy(tr_tmpl)
         for c in range(ncol):
             tc = copy.deepcopy(cell_tmpl)
             txt = cells[c] if c < len(cells) else ""
             _set_cell(tc, txt, None, c, r, colw, rowh)  # style=None → 템플릿 셀 디자인 보존
-            # 맨 왼쪽 열은 사방 테두리 borderFill 로 → 빠져 있던 표 좌측 외곽선을 살린다.
-            if c == 0 and grid_bf:
-                tc.set("borderFillIDRef", grid_bf)
+            # 맨 왼쪽 열만 '같은 굵기' 사방 테두리로 → 빠져 있던 좌측 외곽선을 그 행 굵기로 추가.
+            if c == 0 and gb:
+                tc.set("borderFillIDRef", gb)
             tr.append(tc)
         tbl.append(tr)
     return p
