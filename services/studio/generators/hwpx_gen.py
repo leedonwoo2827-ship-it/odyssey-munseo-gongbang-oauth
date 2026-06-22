@@ -151,8 +151,9 @@ def _render_zip(md: str, out_path: str, template: str) -> str:
     if tbl_tmpl is None:
         tbl_tmpl = _extract_table_template(blobs)
 
+    grid_bf = _find_grid_bf(blobs.get("Contents/header.xml", b""))
     if body_name:
-        blobs[body_name] = _rewrite_section(blobs[body_name], blocks, style_map, tbl_tmpl)
+        blobs[body_name] = _rewrite_section(blobs[body_name], blocks, style_map, tbl_tmpl, grid_bf)
     # 앞 섹션들(표지 등)은 미수정 → 양식 그대로 보존(빈 섹션도 안 만들어 끝 빈 페이지 방지)
 
     # 4) 표지에 _제목_입력_ placeholder 가 있으면 문서 제목으로 치환(있을 때만)
@@ -199,7 +200,7 @@ def _pick(style_map: Dict[str, Dict[str, str]], *names: str) -> Optional[Dict[st
 
 
 def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
-                     style_map: Dict[str, Dict[str, str]], tbl_tmpl=None) -> bytes:
+                     style_map: Dict[str, Dict[str, str]], tbl_tmpl=None, grid_bf=None) -> bytes:
     """섹션의 본문 단락을 교체. 첫 단락(secPr=페이지설정)은 보존."""
     from lxml import etree
 
@@ -235,7 +236,7 @@ def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
             # 진짜 표(템플릿 복제). 실패하면 평탄화(불릿)로 폴백 → 문서는 무조건 나오게.
             if tbl_tmpl is not None and _REAL_TABLES:
                 try:
-                    root.append(_make_table(tbl_tmpl, blk, style_map))
+                    root.append(_make_table(tbl_tmpl, blk, style_map, grid_bf))
                     continue
                 except Exception as e:  # noqa: BLE001
                     print(f"[hwpx_export] 표 렌더 실패, 평탄화 폴백: {e}")
@@ -302,6 +303,22 @@ def _extract_table_template(blobs: Dict[str, bytes], section_names_hint=None):
     return best
 
 
+def _find_grid_bf(header_bytes: bytes) -> Optional[str]:
+    """사방(좌·우·상·하) 모두 테두리가 있는 borderFill id 반환(표 왼쪽 외곽선 보강용). 없으면 None."""
+    from lxml import etree
+    if not header_bytes:
+        return None
+    try:
+        root = etree.fromstring(header_bytes)
+    except Exception:
+        return None
+    for bf in root.iter(f"{{{HH}}}borderFill"):
+        sides = [bf.find(f"{{{HH}}}{s}") for s in ("leftBorder", "rightBorder", "topBorder", "bottomBorder")]
+        if all(e is not None and e.get("type") == "SOLID" for e in sides):
+            return bf.get("id")
+    return None
+
+
 def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int,
               width: int, height: int) -> None:
     """복제한 <hp:tc> 의 주소/크기/스타일/텍스트를 교체. linesegarray 는 제거(한글이 재계산)."""
@@ -345,8 +362,9 @@ def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int
         etree.SubElement(run, f"{P}t").text = text
 
 
-def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
-    """템플릿 표 단락(deepcopy 원본)을 복제해 blk(header/rows)로 채운 <hp:p> 반환."""
+def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]], grid_bf=None):
+    """템플릿 표 단락(deepcopy 원본)을 복제해 blk(header/rows)로 채운 <hp:p> 반환.
+    grid_bf: 맨 왼쪽 열 셀에 적용할 '사방 테두리' borderFill id(표 좌측 외곽선 보강)."""
     P = f"{{{HP}}}"
     p = copy.deepcopy(tbl_tmpl)
     for lsa in list(p.iter(f"{P}linesegarray")):  # 표 단락 레이아웃 캐시 제거
@@ -400,6 +418,9 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
             tc = copy.deepcopy(cell_tmpl)
             txt = cells[c] if c < len(cells) else ""
             _set_cell(tc, txt, None, c, r, colw, rowh)  # style=None → 템플릿 셀 디자인 보존
+            # 맨 왼쪽 열은 사방 테두리 borderFill 로 → 빠져 있던 표 좌측 외곽선을 살린다.
+            if c == 0 and grid_bf:
+                tc.set("borderFillIDRef", grid_bf)
             tr.append(tc)
         tbl.append(tr)
     return p
