@@ -275,25 +275,31 @@ def _next_id() -> str:
 
 
 def _extract_table_template(blobs: Dict[str, bytes], section_names_hint=None):
-    """템플릿 섹션에서 표를 감싼 단락(<hp:p>)을 1개 찾아 deepcopy 로 반환. 없으면 None.
-    이 단락을 복제해 행/열/텍스트만 바꾸면 한글이 여는 표 구조를 그대로 재사용한다."""
+    """표를 감싼 단락(<hp:p>) 중 '셀이 가장 많은' 표를 deepcopy 로 반환(= 내용 표 샘플).
+    작은 장식용 표(간지·표지 디자인 표)는 건너뛴다. 이 표의 디자인(색/테두리/스타일)을 그대로
+    복제하므로, 사용자가 본문에 둔 '내용 표 샘플'을 꾸미면 생성 표에 그대로 반영된다."""
     from lxml import etree
     ptag = f"{{{HP}}}p"
     tbltag = f"{{{HP}}}tbl"
+    tctag = f"{{{HP}}}tc"
+    best = None
+    best_cells = -1
     for name in sorted(n for n in blobs if n.startswith("Contents/section") and n.endswith(".xml")):
         try:
             root = etree.fromstring(blobs[name])
         except Exception:
             continue
-        tbl = root.find(f".//{tbltag}")
-        if tbl is None:
-            continue
-        p = tbl
-        while p is not None and p.tag != ptag:
-            p = p.getparent()
-        if p is not None:
-            return copy.deepcopy(p)
-    return None
+        for tbl in root.iter(tbltag):
+            ncells = len(tbl.findall(f".//{tctag}"))
+            if ncells <= best_cells:
+                continue
+            p = tbl
+            while p is not None and p.tag != ptag:
+                p = p.getparent()
+            if p is not None:
+                best = copy.deepcopy(p)
+                best_cells = ncells
+    return best
 
 
 def _set_cell(tc, text: str, style: Optional[Dict[str, str]], col: int, row: int,
@@ -352,7 +358,14 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
     rows_src = tbl.findall(f"{P}tr")
     if not rows_src:
         raise ValueError("표 템플릿에 <hp:tr> 없음")
-    tc_tmpl = copy.deepcopy(rows_src[0].find(f"{P}tc"))
+    # 머리행 셀 / 내용행 셀을 따로 복제해 사용 → 템플릿 표의 머리행·내용행 디자인(색/스타일)을
+    # 그대로 재현한다. (셀 스타일을 새로 덮어쓰지 않고 style=None 으로 템플릿 셀을 보존)
+    head_tc = rows_src[0].find(f"{P}tc")
+    body_tc = rows_src[1].find(f"{P}tc") if len(rows_src) >= 2 else head_tc
+    if head_tc is None or body_tc is None:
+        raise ValueError("표 템플릿에 <hp:tc> 없음")
+    head_tc = copy.deepcopy(head_tc)
+    body_tc = copy.deepcopy(body_tc)
     tr_tmpl = copy.deepcopy(rows_src[0])
     for tc in tr_tmpl.findall(f"{P}tc"):
         tr_tmpl.remove(tc)
@@ -372,9 +385,6 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
     colw = max(900, total_w // ncol)
     rowh = 1400
 
-    th = _pick(style_map, "표제목", "강조")
-    bh = _pick(style_map, "표본문", "본문")
-
     tbl.set("rowCnt", str(nrow))
     tbl.set("colCnt", str(ncol))
     tbl.set("id", _next_id())
@@ -384,12 +394,12 @@ def _make_table(tbl_tmpl, blk: Dict, style_map: Dict[str, Dict[str, str]]):
 
     for r, cells in enumerate(data):
         is_head = (r == 0 and bool(header))
-        style = th if is_head else bh
+        cell_tmpl = head_tc if is_head else body_tc
         tr = copy.deepcopy(tr_tmpl)
         for c in range(ncol):
-            tc = copy.deepcopy(tc_tmpl)
+            tc = copy.deepcopy(cell_tmpl)
             txt = cells[c] if c < len(cells) else ""
-            _set_cell(tc, txt, style, c, r, colw, rowh)
+            _set_cell(tc, txt, None, c, r, colw, rowh)  # style=None → 템플릿 셀 디자인 보존
             tr.append(tc)
         tbl.append(tr)
     return p
@@ -404,9 +414,11 @@ _DROP_COVER = os.environ.get("STUDIO_HWPX_DROP_COVER", "1") not in ("0", "false"
 
 
 def _drop_cover_info(blocks: List[Dict]) -> List[Dict]:
+    """도입부(문서 제목 + 표지정보표/항목 등)를 떼고 첫 '번호 매겨진' 섹션부터 본문으로.
+    첫 16블록 안에서 '1.'/'I.' 형태의 섹션 제목을 찾으면 그 앞을 전부 버린다."""
     if not _DROP_COVER:
         return blocks
-    for i, b in enumerate(blocks[:8]):
+    for i, b in enumerate(blocks[:16]):
         if i > 0 and b.get("type") == "heading" and _NUM_HEAD_RE.match(b.get("text", "") or ""):
             return blocks[i:]
     return blocks
