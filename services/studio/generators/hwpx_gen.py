@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import re
 import zipfile
 from typing import Dict, List, Optional
 
@@ -211,6 +212,8 @@ def _rewrite_section(section_bytes: bytes, blocks: List[Dict],
     normal = _pick(style_map, "본문") or {"styleId": "0", "paraPrIDRef": "0", "charPrIDRef": "0"}
     emph = _pick(style_map, "강조")
     for blk in blocks:
+        if _is_divider(blk):
+            continue
         for b in (_table_to_blocks(blk) if blk["type"] == "table" else [blk]):
             st = _style_for_block(b, style_map, normal)
             root.append(_make_para(b, st, emph, normal))
@@ -234,13 +237,28 @@ def _table_to_blocks(blk: Dict) -> List[Dict]:
     return out
 
 
+_DIVIDER_RE = re.compile(r"\s*[-_*=—–]{3,}\s*")
+
+
+def _is_divider(blk: Dict) -> bool:
+    """마크다운 구분선(--- *** === 등)은 단락으로 찍지 않고 버린다."""
+    if blk.get("type") not in ("para", "bullet"):
+        return False
+    t = (blk.get("text") or "").strip()
+    return bool(t) and _DIVIDER_RE.fullmatch(t) is not None
+
+
 def _style_for_block(blk: Dict, style_map, normal) -> Dict[str, str]:
     t = blk["type"]
     if t == "heading":
         lvl = min(max(blk["level"], 1), 3)
         return _pick(style_map, f"제목 {lvl}", "제목", f"Heading {lvl}") or normal
     if t == "bullet":
-        return _pick(style_map, "목록") or normal
+        # 1단계(-) → 동그라미(○), 2단계 이상(  -) → 마이너스(−). 없으면 목록/본문 폴백.
+        lvl = blk.get("level", 1) or 1
+        if lvl >= 2:
+            return _pick(style_map, "마이너스", "목록") or normal
+        return _pick(style_map, "동그라미", "목록") or normal
     if t == "quote":
         return _pick(style_map, "인용") or normal
     return normal
@@ -251,7 +269,8 @@ def _make_para(blk: Dict, st: Dict[str, str], emph, normal):
     p = etree.Element(f"{{{HP}}}p")
     p.set("paraPrIDRef", st["paraPrIDRef"])
     p.set("styleIDRef", st["styleId"])
-    prefix = "· " if blk["type"] == "bullet" else ""
+    # 글머리표(○/−)는 동그라미/마이너스 스타일의 문단모양에 내장 — 글자 접두를 넣지 않는다.
+    prefix = ""
     runs = blk.get("runs") or [(blk.get("text", ""), False)]
     first = True
     for text, bold in runs:
