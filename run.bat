@@ -1,35 +1,22 @@
 @echo off
-REM ASCII-only on purpose: Korean text in a .bat breaks on CP949 consoles.
-REM Keep the window open even when double-clicked, so output/errors stay visible.
-if not defined _ODY_KEEPOPEN (
-  set "_ODY_KEEPOPEN=1"
-  cmd /k ""%~f0""
-  exit /b
-)
+REM ASCII-only on purpose: non-ASCII in a .bat can break on CP949 consoles.
+REM Flat structure (single-line IFs + GOTO, no nested () blocks, no self-relaunch)
+REM so it can never mis-parse into an infinite loop.
 cd /d "%~dp0"
-
-REM Port for this instance. Change here if it conflicts with another app.
 set "PORT=7001"
 
-if not exist "venv\Scripts\python.exe" (
-  echo [NOTE] Not installed yet. Please double-click setup.bat first.
-  pause & exit /b 1
-)
+if not exist "venv\Scripts\python.exe" goto :noinstall
 
-REM Check OpenAI Codex CLI (codex) — needed for LLM calls (no API key).
-where codex >nul 2>nul
-if errorlevel 1 (
-  if not exist "%APPDATA%\npm\codex.cmd" (
-    echo [NOTE] codex ^(OpenAI Codex CLI^) not found.
-    echo        Run setup.bat again, or:  npm i -g @openai/codex   then   codex login
-    echo        You can also open the login page and use the [Login] button.
-  )
-)
+REM Check OpenAI Codex CLI (codex) - needed for LLM calls (no API key).
+set "CODEX_OK="
+where codex >nul 2>nul && set "CODEX_OK=1"
+if not defined CODEX_OK if exist "%APPDATA%\npm\codex.cmd" set "CODEX_OK=1"
+if not defined CODEX_OK echo [NOTE] codex not found. Run setup.bat again, or: npm i -g @openai/codex  then  codex login
 
 echo ============================================================
-echo   Odyssey Studio - running
-echo   URL: http://127.0.0.1:%PORT%   (sign in, then /studio)
-echo   (Close this black window to stop. Stop: Ctrl+C)
+echo   Local Report Writer - running
+echo   URL: http://127.0.0.1:%PORT%   (sign in, then go to /studio)
+echo   Close this black window to stop.  (Ctrl+C also stops)
 echo ============================================================
 echo.
 
@@ -40,4 +27,9 @@ venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port %PORT%
 
 echo.
 echo Server stopped.
+pause
+goto :eof
+
+:noinstall
+echo [NOTE] Not installed yet. Please double-click setup.bat first.
 pause
