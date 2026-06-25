@@ -102,7 +102,7 @@ def setup_studio_routes():
                               "filename": safe, "path": dest, "role": "data"})
 
         try:
-            # 비동기: 'running' 즉시 반환 → 프론트가 GET /jobs/{id} 폴링(긴 agy 호출 타임아웃 회피)
+            # 비동기: 'running' 즉시 반환 → 프론트가 GET /jobs/{id} 폴링(긴 LLM 호출 타임아웃 회피)
             # defer=1 이면 생성하지 않고 'ready' 작업만 만든다(근거 기반 5단계 진행용).
             result = pipeline.start_job(recipe_id, saved, instruction,
                                         style_inputs=style, defer=defer)

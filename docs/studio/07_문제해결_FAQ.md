@@ -17,28 +17,27 @@ A. `.env` 의 `APP_PORT` 를 8000 등으로 바꾸고, `run.bat` 의 `--port 700
 **Q. run.bat 을 눌렀는데 브라우저가 비어 있어요.**
 A. 서버 기동 중일 수 있습니다. 5~10초 뒤 새로고침. 콘솔에 `Application startup complete` 가 보이면 준비 완료.
 
-## LLM / 로그인 (공급자: Gemini=agy · OpenAI=codex)
-
-**Q. 공급자는 어떻게 고르고 바꾸나요?**
-A. 우측 상단 **⚙ 연결 상태**(또는 [로그인 관리]) 의 **공급자 토글**에서 [Gemini (Google)] / [OpenAI (ChatGPT)]
-를 누릅니다. 전환하면 상태·모델 목록이 그 공급자 기준으로 바뀝니다. 둘 다 로그인해두고 자유롭게 토글해도 됩니다.
+## LLM / 로그인 (OpenAI Codex CLI · ChatGPT)
 
 **Q. 우측 상단이 🔴 연결 안 됨 이에요.**
-A. **현재 공급자**의 CLI 미설치 또는 미로그인입니다.
-- Gemini: ① `agy --version` 설치 확인 ② **⚙ 연결 상태 → [로그인 관리 열기]** 에서 `agy` 로 Google 로그인.
-- OpenAI: ① `codex --version` 설치 확인, `codex login status` 로그인 확인 ② [로그인 관리]에서 OpenAI 토글 → [로그인](`codex login`).
-→ [Gemini 설치](../antigravity/install.md) · [OpenAI 설치](../openai-codex/install.md)
+A. codex 미설치 또는 미로그인입니다. ① `codex --version` 설치 확인, `codex login status` 로그인 확인
+② 우측 상단 **⚙ 연결 상태 → [로그인 관리 열기]** → **[로그인]**(`codex login`) → ChatGPT 로그인.
+→ [OpenAI/Codex 설치·로그인](../openai-codex/install.md)
 
-**Q. 생성 중 오류: "...미설치/미로그인" 또는 "로그인이 필요합니다".**
-A. 현재 공급자에 로그인하세요(최초 1회): Gemini=`agy`(Google), OpenAI=`codex login`(ChatGPT). **API 키는 필요 없습니다.**
+**Q. 생성 중 오류: "codex 미설치/미로그인" 또는 "로그인이 필요합니다".**
+A. `codex login` 으로 ChatGPT 로그인하세요(최초 1회). **API 키는 필요 없습니다.**
 
 **Q. "할당량(quota)을 초과했습니다" 라고 나와요.**
-A. 로그인한 계정의 사용 한도입니다. 잠시 후 다시 시도하거나, 더 큰 할당량 계정으로 전환하세요
-(앱의 [로그아웃] → 다시 로그인). 권장 상위 구독: Gemini=**Google AI Pro/Ultra**, OpenAI=**ChatGPT Plus/Pro**.
-(Gemini 무료는 하루 ~20건 수준.) 비용·할당량 비교 → [비용표](../antigravity/비용_할당량_비교.md)
+A. 로그인한 ChatGPT 계정의 사용 한도입니다. 잠시 후 다시 시도하거나, 상위 구독(**ChatGPT Plus/Pro**)
+계정으로 전환하세요(앱의 [로그아웃] → 다시 로그인).
 
-**Q. 모델 드롭다운에 다른 공급자 모델이 섞여 보여요.**
-A. 공급자를 토글하면 그 공급자 모델만 나오도록 목록이 새로 채워집니다. 안 바뀌면 **Ctrl+Shift+R**(강력 새로고침).
+**Q. 모델 드롭다운/선택은 어디서?**
+A. **⚙ 연결 상태**의 **사용 모델** 드롭다운(`codex debug models` 결과: gpt-5.5/gpt-5.4/gpt-5.4-mini)에서
+골라 **[적용]**. 안 바뀌면 **Ctrl+Shift+R**(강력 새로고침).
+
+**Q. 예전엔 Gemini(agy)도 됐는데 왜 빠졌나요?**
+A. agy(Antigravity) 자동 호출이 Google 약관 위반으로 계정 차단되어 제거했습니다. codex 는 공식 비대화
+모드라 안전합니다. → [왜 agy는 막히고 codex는 되나](../openai-codex/왜_agy는_막히고_codex는_되나.md)
 
 ## 입력/추출
 

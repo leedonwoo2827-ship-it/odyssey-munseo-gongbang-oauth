@@ -16,9 +16,9 @@
       </div>
     </div>
     <div class="topbar-right">
-      <div class="status" id="status-chip" title="Gemini(agy) 연결 상태">● 확인 중…</div>
+      <div class="status" id="status-chip" title="OpenAI(codex) 연결 상태">● 확인 중…</div>
       <button id="open-outputs" class="btn-ghost" title="이 PC에 생성된 산출물 목록">📂 산출물</button>
-      <button id="open-settings" class="btn-ghost" title="Gemini 연결 상태·터미널">⚙ 연결 상태</button>
+      <button id="open-settings" class="btn-ghost" title="OpenAI 연결 상태·로그인">⚙ 연결 상태</button>
     </div>
   </header>
 
@@ -37,14 +37,9 @@
     <div class="modal">
       <h2>⚙ LLM 연결 상태</h2>
       <p class="modal-sub" id="settings-intro">
-        API 키가 필요 없습니다. 공급자를 고르고 그 CLI(agy=Google / codex=ChatGPT)에 로그인하면
+        API 키가 필요 없습니다. OpenAI Codex CLI(<code>codex</code>)에 ChatGPT 계정으로 로그인하면
         그 계정 할당량으로 모델을 사용합니다.
       </p>
-      <div style="margin:8px 0 12px;">
-        <label style="font-size:13px;color:#555;">공급자&nbsp;</label>
-        <button id="prov-agy" class="btn" type="button">Gemini (Google)</button>
-        <button id="prov-codex" class="btn" type="button">OpenAI (ChatGPT)</button>
-      </div>
       <div class="modal-status" id="set-status">상태 확인 중…</div>
       <div style="margin:10px 0;">
         <label for="studio-model" style="font-size:13px;color:#555;">사용 모델&nbsp;</label>
@@ -53,14 +48,14 @@
         </select>
         <button id="apply-model" class="btn" type="button" style="margin-left:6px;">적용</button>
         <span id="studio-model-msg" style="font-size:12px;color:#888;margin-left:6px;"></span>
-        <div style="font-size:12px;color:#999;margin-top:4px;">상위·고추론 모델일수록(예: Gemini Pro(High), GPT-5.5) 길고 자세하지만 할당량을 더 씁니다.</div>
+        <div style="font-size:12px;color:#999;margin-top:4px;">상위·고추론 모델일수록(예: GPT-5.5) 길고 자세하지만 할당량을 더 씁니다.</div>
       </div>
       <div class="modal-actions">
         <button id="open-terminal" class="btn primary" type="button">🖥️ 로그인 관리 열기</button>
         <button id="refresh-settings" class="btn">상태 새로고침</button>
         <button id="close-settings" class="btn">닫기</button>
       </div>
-      <p class="modal-hint">로그인/계정전환은 [로그인 관리 열기] 페이지에서. 대량 생성에는 상위 구독(Google AI Pro / ChatGPT Plus·Pro) 권장.</p>
+      <p class="modal-hint">로그인/계정전환은 [로그인 관리 열기] 페이지에서. 대량 생성에는 상위 구독(ChatGPT Plus·Pro) 권장.</p>
     </div>
   </div>
 

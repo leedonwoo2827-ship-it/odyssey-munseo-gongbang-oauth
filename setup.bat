@@ -55,39 +55,8 @@ if errorlevel 1 (
 )
 echo step:pip-ok >> "%LOG%"
 
-REM    Embedded-terminal PTY backend (pywinpty) - install if missing
-"%VPY%" -c "import winpty" 2>nul
-if errorlevel 1 (
-  echo       Installing embedded-terminal backend pywinpty ...
-  "%VPY%" -m pip install pywinpty
-)
-"%VPY%" -c "import winpty" 2>nul
-if errorlevel 1 (
-  echo       [NOTE] pywinpty not installed - the in-page terminal will fall back to a real cmd window.
-) else (
-  echo       [OK] embedded-terminal backend ready
-)
-echo step:pywinpty-done >> "%LOG%"
-
-REM 4) Antigravity CLI (agy) - best effort, isolated with cmd /c
-echo [3/3] Checking Antigravity CLI (agy) ...
-where agy >nul 2>nul
-if errorlevel 1 (
-  echo       agy not found - trying to install ^(needs internet^) ...
-  curl -fsSL https://antigravity.google/cli/install.cmd -o "%TEMP%\agy_install.cmd"
-  if exist "%TEMP%\agy_install.cmd" cmd /c "%TEMP%\agy_install.cmd"
-  del "%TEMP%\agy_install.cmd" >nul 2>nul
-)
-where agy >nul 2>nul
-if errorlevel 1 (
-  echo       [NOTE] agy not installed yet - install later, see docs\antigravity\install.md
-) else (
-  echo       [OK] agy installed
-)
-echo step:agy-done >> "%LOG%"
-
-REM 4b) OpenAI Codex CLI (optional, for OpenAI/ChatGPT provider) - best effort via npm
-echo       Checking OpenAI Codex CLI (codex) ...
+REM 3) OpenAI Codex CLI (codex) - LLM backend (no API key). best effort via npm.
+echo [3/3] Checking OpenAI Codex CLI (codex) ...
 set "CODEX_NPM=%APPDATA%\npm\codex.cmd"
 where codex >nul 2>nul
 if errorlevel 1 (
@@ -112,7 +81,8 @@ if defined CODEX_ON_PATH (
     echo              but a plain `codex` typed in a new cmd window will fail.
     echo              To fix permanently, add that folder to your PATH.
   ) else (
-    echo       [NOTE] codex not installed - OpenAI provider optional, see docs\openai-codex\install.md
+    echo       [NOTE] codex not installed - install Node.js then:  npm i -g @openai/codex
+    echo              see docs\openai-codex\install.md
   )
 )
 echo step:codex-done >> "%LOG%"
@@ -126,12 +96,11 @@ echo.
 echo ============================================================
 echo   SETUP COMPLETE.  Next:  double-click run.bat
 echo.
-echo   Sign in once (pick a provider on screen: Gemini or OpenAI):
-echo     - Gemini : open the login terminal and type   agy          (Google sign-in)
-echo     - OpenAI : open the login terminal and run     codex login  (ChatGPT sign-in)
-echo   Tip: on the page, use the provider toggle + [Login] button - it opens
-echo        the right terminal for you. Then click [Refresh status].
-echo   No API key needed (uses your account quota).
+echo   Sign in once with ChatGPT:
+echo     - On the login page, click [Login] (a terminal runs: codex login)
+echo       and sign in with your ChatGPT account in the browser.
+echo     - Or run in a terminal:   codex login
+echo   No API key needed (uses your ChatGPT account quota).
 echo ============================================================
 
 :end

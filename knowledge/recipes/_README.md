@@ -12,7 +12,7 @@ id: 17-새보고서                 # 고유 id (파일명과 같게 권장)
 name: 새 보고서                 # 버튼에 보일 이름
 category: 보고서                # 버튼 묶음(그룹)
 description: 무엇을 만드는지 한 줄 설명
-model: claude-sonnet-4-6        # (선택) 모델 지정. 비우면 기본값
+model: gpt-5.5                  # (선택) codex 모델 slug. 비우면 화면에서 고른 모델
 output:
   format: hwpx                  # hwpx | docx | pptx | xlsx | md
   template: hwpx_template.hwpx  # (선택) assets/ 의 회사 양식

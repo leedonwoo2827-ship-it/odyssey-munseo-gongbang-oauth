@@ -1,25 +1,27 @@
-"""LLM 공급자 디스패처 — Gemini(agy) ↔ OpenAI(codex) 토글.
+"""LLM 공급자 디스패처 — 현재 OpenAI(codex) 단일 공급자.
 
-활성 공급자를 data/llm_provider.json 에 저장하고, 상위(studio/llm.py, 라우트)에서
-공급자와 무관하게 active_* 로 접근한다. 각 공급자(services/agy, services/codex)는
-동일 인터페이스(client.chat / auth.is_installed·is_authenticated·get_account_email·logout
-/ runner.list_models·get_model·set_model)를 제공한다.
+상위(studio/llm.py, 라우트)에서 공급자와 무관하게 active_* 로 접근한다.
+
+과거엔 Gemini(agy)↔OpenAI(codex) 토글이 있었으나, agy(Antigravity CLI)를 앱이 자동
+호출한 것이 Google ToS("제3자 도구로 OAuth 자원 접근") 위반으로 계정이 차단되어 제거했다.
+codex 는 공식 비대화 모드 `codex exec` 라 약관상 안전하다(→ docs/openai-codex 참고).
+추상화 구조는 유지하여 향후 다른 공급자 추가 여지를 남긴다.
 """
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-VALID = ("agy", "codex")
-LABELS = {"agy": "Gemini (Google)", "codex": "OpenAI (ChatGPT)"}
+VALID = ("codex",)
+LABELS = {"codex": "OpenAI (ChatGPT)"}
 
 _PROVIDER_FILE = Path(__file__).resolve().parents[1] / "data" / "llm_provider.json"
-_DEFAULT = (os.environ.get("LLM_PROVIDER", "agy").strip() or "agy")
+_DEFAULT = "codex"
 
 
 def get_provider() -> str:
+    """활성 공급자(현재 codex 단일). 파일/환경값이 있어도 유효 공급자로만 한정."""
     try:
         if _PROVIDER_FILE.is_file():
             p = json.loads(_PROVIDER_FILE.read_text(encoding="utf-8")).get("provider", "")
@@ -27,7 +29,7 @@ def get_provider() -> str:
                 return p
     except Exception:
         pass
-    return _DEFAULT if _DEFAULT in VALID else "agy"
+    return _DEFAULT
 
 
 def set_provider(name: str) -> bool:
@@ -45,14 +47,9 @@ def set_provider(name: str) -> bool:
 
 def _modules(name: str):
     """(runner, auth, login_cmd) 반환. 지연 import."""
-    if name == "codex":
-        from services.codex import runner as r
-        from services.codex import auth as a
-        return r, a, a.login_terminal_cmd()
-    from services.agy import runner as r
-    from services.agy import auth as a
-    # codex 와 동일하게, PATH 에 agy 가 없어도 열리도록 탐지된 절대경로 우선(폴백: 맨이름).
-    return r, a, [r.agy_path() or os.environ.get("AGY_BIN", "agy")]  # agy 로그인 = `agy` 실행
+    from services.codex import runner as r
+    from services.codex import auth as a
+    return r, a, a.login_terminal_cmd()
 
 
 def active_client():
@@ -89,7 +86,7 @@ def _status_one(name: str) -> Dict[str, Any]:
 
 
 def status_all() -> Dict[str, Any]:
-    """모든 공급자 상태 + 현재 활성 공급자."""
+    """공급자 상태 + 현재 활성 공급자(단일이지만 구조 유지)."""
     cur = get_provider()
     return {
         "provider": cur,

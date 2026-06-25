@@ -1,7 +1,7 @@
 fastapi
 uvicorn
-# WebSocket support for uvicorn (embedded /terminal page). Without it the WS
-# handshake fails with code 1006 and the in-page terminal can't connect.
+# WebSocket support for uvicorn (chat streaming endpoints). Without it the WS
+# handshake fails with code 1006.
 websockets
 python-multipart
 python-dotenv
@@ -38,11 +38,7 @@ croniter
 pytest
 pytest-asyncio
 # --- Document Studio (AIM N-team) ---
-# LLM backend = official Antigravity CLI (agy) via subprocess. No API key / SDK.
-# Embedded-terminal PTY backend (agy login / switch account / model / usage).
-# If not installed, the app still works - "open terminal" falls back to a real cmd window.
-pywinpty; platform_system == "Windows"
-ptyprocess; platform_system != "Windows"
+# LLM backend = OpenAI Codex CLI (codex) via subprocess. No API key / SDK.
 requests
 # Recipe catalog (YAML)
 pyyaml

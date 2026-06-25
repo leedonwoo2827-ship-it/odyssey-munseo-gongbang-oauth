@@ -36,15 +36,11 @@ async function init() {
     box.style.display = STYLE_FILES.length ? "block" : "none";
     box.textContent = STYLE_FILES.length ? ("✓ " + STYLE_FILES.map(f => f.name).join(", ")) : "";
   });
-  // 연결 상태 모달 (agy)
+  // 연결 상태 모달 (codex)
   $("#open-settings").addEventListener("click", () => openSettings(false));
   $("#close-settings").addEventListener("click", closeSettings);
   $("#refresh-settings").addEventListener("click", () => openSettings(false));
   $("#open-terminal").addEventListener("click", openTerminal);
-  // 공급자 토글
-  const pa = $("#prov-agy"), pc = $("#prov-codex");
-  if (pa) pa.addEventListener("click", () => setProvider("agy"));
-  if (pc) pc.addEventListener("click", () => setProvider("codex"));
   // 산출물 목록 모달
   $("#open-outputs").addEventListener("click", openOutputs);
   $("#close-outputs").addEventListener("click", () => { $("#outputs-overlay").style.display = "none"; });
@@ -56,8 +52,8 @@ async function init() {
 }
 
 async function checkHealth() {
-  // 칩은 agy 로그인 여부(자격증명)로 판단 — 빠르고 할당량 소모 없음.
-  // (실제 생성 가능 여부와 동일: agy 로그인돼 있으면 생성 가능)
+  // 칩은 codex 로그인 여부(자격증명)로 판단 — 빠르고 할당량 소모 없음.
+  // (실제 생성 가능 여부와 동일: codex 로그인돼 있으면 생성 가능)
   const chip = $("#status-chip");
   chip.onclick = () => openSettings(true);
   try {
@@ -81,18 +77,7 @@ async function checkHealth() {
   }
 }
 
-// 공급자 전환
-async function setProvider(name) {
-  try {
-    await fetch(`/api/llm/provider`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider: name }),
-    });
-  } catch (e) { /* 무시 */ }
-  openSettings(false);
-}
-
-// ── 연결 상태 모달 (공급자 토글) ─────────────────────────────────
+// ── 연결 상태 모달 ─────────────────────────────────
 async function openSettings(firstTime) {
   const st = $("#set-status");
   st.className = "modal-status"; st.textContent = "상태 확인 중…";
@@ -102,10 +87,6 @@ async function openSettings(firstTime) {
     const r = await fetch(`${API}/settings`);
     const s = await r.json();
     label = s.label || "LLM";
-    // 공급자 토글 버튼 활성 표시
-    const pa = $("#prov-agy"), pc = $("#prov-codex");
-    if (pa) pa.style.outline = (s.provider === "agy") ? "2px solid #6366f1" : "none";
-    if (pc) pc.style.outline = (s.provider === "codex") ? "2px solid #6366f1" : "none";
     if (!s.installed) {
       st.className = "modal-status bad";
       st.textContent = `✗ ${label} CLI가 설치되어 있지 않습니다. [로그인 관리 열기]에서 설치/로그인하세요.`;
@@ -123,7 +104,7 @@ async function openSettings(firstTime) {
   checkHealth();
 }
 
-// agy 모델 드롭다운: 목록은 agy models 에서 동적으로, [적용] 버튼으로 저장
+// 모델 드롭다운: 목록은 codex(debug models)에서 동적으로, [적용] 버튼으로 저장
 async function loadModelOptions() {
   const sel = $("#studio-model");
   const msg = $("#studio-model-msg");
@@ -133,7 +114,7 @@ async function loadModelOptions() {
     const r = await fetch(`/api/llm/models`, { cache: "no-store" });
     const d = await r.json();
     // 드롭다운을 통째로 재구성 — 다른 공급자 모델이 섞여 남지 않게(선택 공급자 모델만).
-    const defLabel = d.provider === "codex" ? "기본값 (codex 자동 선택)" : "기본값 (agy 자동 선택)";
+    const defLabel = "기본값 (codex 자동 선택)";
     sel.innerHTML = "";
     const def = document.createElement("option");
     def.value = ""; def.textContent = defLabel; sel.appendChild(def);
@@ -166,12 +147,12 @@ async function loadModelOptions() {
 function closeSettings() { $("#settings-overlay").style.display = "none"; }
 
 // "터미널 열기" → 새 탭으로 브라우저 내장 터미널(/terminal) 열기.
-// (내장 터미널이 pywinpty 없이 안 되면 그 페이지가 실제 cmd 창으로 자동 폴백)
+// 새 탭의 [로그인 관리] 페이지에서 codex 로그인을 진행한다.
 function openTerminal() {
   window.open("/terminal", "_blank", "noopener");
   const st = $("#set-status");
   st.className = "modal-status";
-  st.textContent = "새 탭의 터미널에서 agy 로 로그인 후, '상태 새로고침'을 누르세요.";
+  st.textContent = "새 탭의 [로그인 관리]에서 codex 로 로그인 후, '상태 새로고침'을 누르세요.";
 }
 
 // ── 산출물 목록 모달 ─────────────────────────────────────
@@ -481,7 +462,7 @@ function buildSlot(inp) {
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // 작업이 'running' 이면 완료(done/error)까지 GET /jobs/{id} 폴링.
-// (긴 agy 생성이 단일 HTTP 요청 타임아웃에 걸리지 않도록 백그라운드+폴링 구조)
+// (긴 LLM 생성이 단일 HTTP 요청 타임아웃에 걸리지 않도록 백그라운드+폴링 구조)
 async function pollJob(id) {
   for (let i = 0; i < 360; i++) {   // 최대 ~12분 (2s * 360)
     await _sleep(2000);

@@ -16,18 +16,14 @@ if not exist "venv\Scripts\python.exe" (
   pause & exit /b 1
 )
 
-REM Self-heal: ensure embedded-terminal backend (pywinpty) exists (older venvs)
-venv\Scripts\python -c "import winpty" 2>nul
+REM Check OpenAI Codex CLI (codex) — needed for LLM calls (no API key).
+where codex >nul 2>nul
 if errorlevel 1 (
-  echo [NOTE] Installing missing components pywinpty ... first time only.
-  venv\Scripts\python -m pip install -r requirements.txt
-)
-
-where agy >nul 2>nul
-if errorlevel 1 (
-  echo [NOTE] agy ^(Antigravity CLI^) not found.
-  echo        Run setup.bat again, or see docs\antigravity\install.md
-  echo        You can also just open the agy terminal from the login page and install/sign in there.
+  if not exist "%APPDATA%\npm\codex.cmd" (
+    echo [NOTE] codex ^(OpenAI Codex CLI^) not found.
+    echo        Run setup.bat again, or:  npm i -g @openai/codex   then   codex login
+    echo        You can also open the login page and use the [Login] button.
+  )
 )
 
 echo ============================================================

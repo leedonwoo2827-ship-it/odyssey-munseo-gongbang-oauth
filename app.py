@@ -168,21 +168,12 @@ if AUTH_ENABLED:
         "/api/auth/features",
         "/api/auth/settings",
         "/api/auth/integrations/presets",
-        # Google 로그인(agy 기반) — 로그인 전에 호출되어야 하므로 예외.
-        "/api/auth/google/status",
-        "/api/auth/google/login",
         "/api/health",
         "/api/version",
         "/login",
-        # agy 내장 터미널 페이지 — 최초 agy 로그인을 위해 인증 전 접근 허용.
-        # (WS /api/agy/terminal/ws 는 loopback 으로 자체 제한 + BaseHTTPMiddleware 미적용)
+        # 로그인 관리 페이지(codex 로그인/계정전환) — 최초 로그인 위해 인증 전 접근 허용.
+        # (로그인 동작은 /api/llm/* 와 /api/auth/cli/* 가 담당 — 둘 다 prefix 예외.)
         "/terminal",
-        "/api/agy/terminal/diag",
-        # OS 터미널 창을 띄워 agy 로그인 — 로그인 전에 호출되어야 하므로 예외(loopback 자체제한).
-        "/api/agy/open-terminal",
-        "/api/agy/logout",
-        "/api/agy/models",
-        "/api/agy/model",
     }
     AUTH_EXEMPT_PREFIXES = ["/static", "/api/llm", "/api/auth/cli"]
     # Dynamic paths whose own handler proves identity via a path-embedded
@@ -736,21 +727,13 @@ app.include_router(setup_companion_routes())
 from routes.studio_routes import setup_studio_routes
 app.include_router(setup_studio_routes())
 
-# Google 로그인(agy 기반) — /api/auth/google/* (하위호환 유지)
-from routes.google_auth_routes import setup_google_auth_routes
-app.include_router(setup_google_auth_routes(auth_manager))
-
-# 공급자 무관 로그인 — /api/auth/cli/* (활성 공급자: Gemini/agy ↔ OpenAI/codex)
+# 로그인 — /api/auth/cli/* (codex/ChatGPT 로그인 신원으로 세션 발급)
 from routes.auth_cli_routes import setup_auth_cli_routes
 app.include_router(setup_auth_cli_routes(auth_manager))
 
-# 공급자 무관 LLM 관리 — /api/llm/* (공급자 토글·모델·로그인터미널·로그아웃)
+# LLM 관리 — /api/llm/* (상태·모델·로그인 터미널·로그아웃; 공급자 codex 단일)
 from routes.llm_routes import setup_llm_routes
 app.include_router(setup_llm_routes())
-
-# agy 내장 터미널 (WebSocket) — /api/agy/terminal/ws
-from routes.agy_terminal_routes import setup_agy_terminal_routes
-app.include_router(setup_agy_terminal_routes())
 
 # ========= ROUTES (kept in app.py) =========
 
@@ -828,7 +811,7 @@ async def serve_login(request: Request):
 
 @app.get("/terminal")
 async def serve_terminal(request: Request):
-    """agy 내장 터미널 페이지(로그인/계정전환/모델변경/사용량). 최초 로그인 위해 인증 불필요."""
+    """로그인 관리 페이지(codex 로그인/계정전환/모델). 최초 로그인 위해 인증 불필요."""
     return _serve_html_with_nonce(request, abs_join(BASE_DIR, "static/terminal.html"))
 
 @app.get("/api/version")

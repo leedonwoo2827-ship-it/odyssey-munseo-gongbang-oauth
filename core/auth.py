@@ -429,13 +429,13 @@ class AuthManager:
         return token
 
     # ------------------------------------------------------------------
-    # Google OAuth (passwordless) — login is delegated to the official
-    # Antigravity CLI(`agy`); we provision the account by email and mint a
-    # session without a password. See routes/google_auth_routes.py.
+    # CLI OAuth (passwordless) — login is delegated to the provider CLI
+    # (codex / ChatGPT login); we provision the account by email and mint a
+    # session without a password. See routes/auth_cli_routes.py.
     # ------------------------------------------------------------------
 
     def ensure_oauth_user(self, email: str, is_admin: bool = False) -> Optional[str]:
-        """Provision (or return) a passwordless account for a Google email.
+        """Provision (or return) a passwordless account for an OAuth email.
 
         The email (lowercased) becomes the username and the owner key, reusing
         the existing owner-scoped multi-user data model. Returns the username,
@@ -460,7 +460,7 @@ class AuthManager:
             "created": time.time(),
             "is_admin": is_admin,
             "privileges": dict(ADMIN_PRIVILEGES if is_admin else DEFAULT_PRIVILEGES),
-            "oauth": "google",
+            "oauth": "cli",
         }
         self._save()
         logger.info(f"Provisioned OAuth user '{username}' (admin={is_admin})")
@@ -469,7 +469,7 @@ class AuthManager:
     def create_session_for_user(self, username: str) -> Optional[str]:
         """Mint a session token for an already-authenticated user (no password).
 
-        Used by the Google/agy login flow after identity is established
+        Used by the CLI login flow (codex) after identity is established
         externally. Only succeeds for an existing account.
         """
         username = (username or "").strip().lower()

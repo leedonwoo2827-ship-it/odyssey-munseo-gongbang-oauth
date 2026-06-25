@@ -1,6 +1,6 @@
-"""LLM 호출 래퍼 — 활성 공급자(Gemini/agy ↔ OpenAI/codex)로 라우팅.
+"""LLM 호출 래퍼 — OpenAI Codex CLI(codex)로 라우팅.
 
-API 키를 쓰지 않는다. 인증/할당량은 각 CLI(agy / codex)가 담당하며(1회 로그인),
+API 키를 쓰지 않는다. 인증/할당량은 codex(`codex login`, ChatGPT)가 담당하며(1회 로그인),
 services.llm_backend 디스패처를 통해 활성 공급자의 client 로 비대화식 호출한다.
 """
 from __future__ import annotations
@@ -21,15 +21,9 @@ def _get_client():
     from services import llm_backend
     auth = llm_backend.active_auth()
     if not auth.is_installed():
-        prov = llm_backend.get_provider()
-        if prov == "codex":
-            raise LLMConfigError(
-                "OpenAI Codex CLI(`codex`)가 설치되어 있지 않습니다.\n"
-                "docs/openai-codex/install.md 참고 → 설치 후 `codex login` 으로 로그인하세요."
-            )
         raise LLMConfigError(
-            "Antigravity CLI(`agy`)가 설치되어 있지 않습니다.\n"
-            "docs/antigravity/install.md 참고 → 설치 후 터미널에서 `agy` 로 Google 로그인하세요."
+            "OpenAI Codex CLI(`codex`)가 설치되어 있지 않습니다.\n"
+            "docs/openai-codex/install.md 참고 → 설치 후 `codex login` 으로 로그인하세요."
         )
     return llm_backend.active_client()
 
@@ -40,9 +34,7 @@ def chat(messages: List[Dict[str, str]], model: Optional[str] = None,
     from services.llm_errors import LLMNotInstalled, LLMNotAuthenticated
     from services import llm_backend
     client = _get_client()
-    # **활성 공급자의 선택 모델(UI)** 이 최우선. 화면 토글로 고른 모델이 레시피/호출자 인자보다
-    # 우선해야 codex 에 gemini 모델이 새어들어가지 않는다. 둘 다 비면 CLI 자체 기본 모델.
-    # (agy 는 원래 runner 가 자기 get_model 을 쓰므로 이 우선순위와 일관.)
+    # 화면(⚙ 연결 상태)에서 고른 모델이 최우선. 비면 호출자 인자, 둘 다 비면 codex 기본 모델.
     sel = llm_backend.get_model() or (model or "").strip()
     try:
         resp = client.chat(sel or None, messages, max_tokens=max_tokens)

@@ -1,8 +1,7 @@
-"""공급자 무관 LLM 관리 API — /api/llm/*
+"""LLM 관리 API — /api/llm/*
 
-활성 공급자(Gemini/agy ↔ OpenAI/codex)를 토글하고, 그 공급자의 로그인/로그아웃/모델을 다룬다.
-로그인 자체는 각 CLI(`agy` / `codex login`)가 처리하므로, 여기서는 그 명령을 실제 OS 터미널
-창에 띄워준다. (loopback 전용)
+공급자(codex, OpenAI)의 상태/모델/로그인/로그아웃을 다룬다. 로그인 자체는 CLI(`codex login`)가
+처리하므로, 여기서는 그 명령을 실제 OS 터미널 창에 띄워준다. (loopback 전용)
 """
 from __future__ import annotations
 
@@ -90,22 +89,17 @@ def setup_llm_routes() -> APIRouter:
 
     @router.post("/open-terminal")
     async def llm_open_terminal(request: Request):
-        """활성 공급자의 로그인 명령(`agy` / `codex login`)을 실제 터미널 창에서 실행."""
+        """로그인 명령(`codex login`)을 실제 터미널 창에서 실행."""
         if not _loopback(request):
             return JSONResponse(status_code=403, content={"ok": False, "message": "로컬에서만 가능합니다."})
         from services import llm_backend
-        # 미설치 상태에서 터미널을 열면 'codex/agy 를 찾을 수 없음' 으로 곧장 실패한다.
+        # 미설치 상태에서 터미널을 열면 'codex 를 찾을 수 없음' 으로 곧장 실패한다.
         # 먼저 설치 여부를 확인해 명확히 안내한다.
-        prov = llm_backend.get_provider()
         if not llm_backend.active_auth().is_installed():
-            if prov == "codex":
-                name, doc = "OpenAI Codex CLI(codex)", "docs/openai-codex/install.md"
-            else:
-                name, doc = "Antigravity CLI(agy)", "docs/antigravity/install.md"
             return JSONResponse(status_code=400, content={
                 "ok": False,
-                "message": f"{name} 가 설치되어 있지 않습니다. setup.bat 을 다시 실행하거나 "
-                           f"{doc} 를 참고해 설치한 뒤 [상태 새로고침] 하세요."})
+                "message": "OpenAI Codex CLI(codex) 가 설치되어 있지 않습니다. setup.bat 을 다시 실행하거나 "
+                           "docs/openai-codex/install.md 를 참고해 설치한 뒤 [상태 새로고침] 하세요."})
         cmd = llm_backend.login_cmd()
         try:
             method = _launch_terminal(cmd)

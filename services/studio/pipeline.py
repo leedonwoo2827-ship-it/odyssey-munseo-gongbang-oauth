@@ -326,7 +326,7 @@ def start_job(recipe_id: str, saved_inputs: List[Dict[str, str]],
               style_inputs: Optional[List[Dict[str, str]]] = None,
               defer: bool = False) -> Dict[str, Any]:
     """비동기 생성: 'running' 작업을 즉시 반환하고 백그라운드 스레드에서 생성.
-    프론트는 GET /jobs/{id} 를 폴링한다(긴 agy 호출이 HTTP 타임아웃에 안 걸리게).
+    프론트는 GET /jobs/{id} 를 폴링한다(긴 LLM 호출이 HTTP 타임아웃에 안 걸리게).
 
     defer=True 면 생성하지 않고 'ready' 작업만 만든다(근거 기반 5단계 진행용)."""
     job = _new_job(recipe_id, saved_inputs, instruction, style_inputs, defer)

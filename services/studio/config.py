@@ -30,13 +30,13 @@ UPLOADS_DIR = os.path.join(STUDIO_DATA, "uploads")
 EVIDENCE_DIR = os.path.join(STUDIO_DATA, "evidence")
 
 # ── LLM 백엔드 ───────────────────────────────────────────────────────
-# 구글 공식 Antigravity CLI(`agy`)로 호출한다. API 키/URL 설정이 없다(인증·할당량은
-# agy 가 담당; 사용자가 `agy` 에 1회 Google 로그인). → services/agy 참고.
+# OpenAI Codex CLI(`codex`)로 호출한다. API 키/URL 설정이 없다(인증·할당량은 codex 가
+# 담당; 사용자가 `codex login` 으로 1회 ChatGPT 로그인). → services/codex 참고.
 
-# 기본 모델 (레시피에서 override 가능)
-DEFAULT_MODEL = os.environ.get("STUDIO_DEFAULT_MODEL", "gemini-3-pro")
-# 긴 입력 요약 등에 쓰는 모델
-LONG_MODEL = os.environ.get("STUDIO_LONG_MODEL", "gemini-3-flash")
+# 기본 모델 (비우면 codex 자체 기본 모델; 화면/레시피에서 override 가능)
+DEFAULT_MODEL = os.environ.get("STUDIO_DEFAULT_MODEL", "")
+# 긴 입력 요약 등에 쓰는 모델 (비우면 기본 모델)
+LONG_MODEL = os.environ.get("STUDIO_LONG_MODEL", "")
 
 # 입력 텍스트 한 파일당 추출 상한 (토큰 폭주 방지) — 문자 수 기준
 MAX_CHARS_PER_INPUT = int(os.environ.get("STUDIO_MAX_CHARS_PER_INPUT", "40000"))

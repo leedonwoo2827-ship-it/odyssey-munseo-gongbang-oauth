@@ -2,7 +2,7 @@
 
 설계 의도:
 - API 키를 쓰지 않는다. 인증/할당량은 `codex` 가 담당(사용자가 `codex login` 1회, ChatGPT OAuth).
-- agy 의 AgyClient 와 동일한 `.chat(model, messages, max_tokens) -> resp(.text)` 시그니처(드롭인).
+- 회사 LiteLLM 프록시와 동일한 `.chat(model, messages, max_tokens) -> resp(.text)` 시그니처(드롭인).
 - `codex exec` 는 최종 답을 stdout 으로 내보내므로 PTY 불필요(일반 subprocess 캡처).
 - 코딩 에이전트이므로 `-s read-only -a never` + 가드 프롬프트로 파일변경/도구사용을 막는다.
 """

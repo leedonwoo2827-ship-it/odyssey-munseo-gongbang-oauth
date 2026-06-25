@@ -1,7 +1,7 @@
-"""공급자 무관 로그인 라우트 — /api/auth/cli/*
+"""로그인 라우트 — /api/auth/cli/*
 
-로그인은 활성 공급자의 CLI(agy=Google / codex=ChatGPT)가 처리한다. 이 라우트는
-그 CLI 의 인증 상태를 읽어 앱 세션을 발급한다. (앱 자체 OAuth 클라이언트 없음)
+로그인은 CLI(codex / ChatGPT 로그인)가 처리한다. 이 라우트는 그 CLI 의 인증 상태를 읽어
+앱 세션을 발급한다. (앱 자체 OAuth 클라이언트 없음)
 """
 from __future__ import annotations
 
@@ -59,16 +59,12 @@ def setup_auth_cli_routes(auth_manager: AuthManager) -> APIRouter:
         provider = llm_backend.get_provider()
         if not auth.is_installed():
             return {"ok": False, "reason": "not_installed",
-                    "message": ("codex 가 설치되어 있지 않습니다. docs/openai-codex/install.md 참고."
-                                if provider == "codex" else
-                                "agy 가 설치되어 있지 않습니다. docs/antigravity/install.md 참고.")}
+                    "message": "OpenAI Codex CLI(codex)가 설치되어 있지 않습니다. docs/openai-codex/install.md 참고."}
         email = await asyncio.to_thread(auth.get_account_email)
         authed = await asyncio.to_thread(auth.is_authenticated)
         if not email and not authed:
             return {"ok": False, "reason": "not_authenticated",
-                    "message": ("ChatGPT 로그인이 필요합니다. 터미널에서 `codex login`."
-                                if provider == "codex" else
-                                "Google 로그인이 필요합니다. 터미널에서 `agy`.")}
+                    "message": "ChatGPT 로그인이 필요합니다. 터미널에서 `codex login`."}
         # 토큰이 불투명해 email 못 읽으면 공급자별 대체 신원
         fallback = f"{provider}-user@local"
         if not email:
